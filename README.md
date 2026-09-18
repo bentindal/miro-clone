@@ -147,7 +147,7 @@ e2e           Playwright specs, one file per SPEC.md item
 | G | Toggle grid snap |
 | Alt while dragging | Disable snapping |
 | Tab / Shift+Tab (canvas focused) | Select next / previous object |
-| Enter | Edit the selected text or frame title |
+| Enter | Edit the selected text, frame title or connector label |
 | Delete, Backspace | Delete selection |
 | Esc | Cancel drag, clear selection, back to select tool |
 | + - Ctrl+0 Shift+1 | Zoom in, out, reset, fit |

@@ -176,7 +176,9 @@ and `chromium-worker`), so every proof below holds for each.
       `the board title syncs and persists`.
 - [x] Real-time editing. Changes appear for everyone on the board as they
       happen, including live text edits, and undo only reverts the local
-      person's own steps.
+      person's own steps. Z-order is a fractional index per shape, so
+      concurrent reorders converge without duplicates (unit-tested in
+      `src/sync/__tests__/binding.test.ts`).
       Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
       `edits made by one person appear for the other, and each undoes only their own`.
 - [x] Presence. Names, colours, live cursors and selections of the other people
@@ -215,6 +217,30 @@ and `chromium-worker`), so every proof below holds for each.
       `comments can be placed on empty board, opened from their pin, resolved and reopened`,
       `viewers can read comments but not post them`.
 
+## Phase 3: editing quality
+
+Closing the gaps that make the editor feel unfinished. Same rule: a tick
+needs a passing end-to-end test.
+
+- [x] Connector labels and arrowheads. Double-click a connector (or use the
+      property bar) to give it a label drawn at the midpoint of its path; the
+      label is part of the connector for selection. Each end has an arrowhead
+      style: none, arrow, open, dot, bar. Both persist and sync.
+      Proof: [`e2e/connector-labels.spec.ts`](e2e/connector-labels.spec.ts) › `connector labels and arrowheads` ›
+      `double-clicking a connector edits its label, which sits at the path midpoint and syncs`,
+      `arrowheads can be set per end from the property bar and survive save and load`.
+- [x] Resize snapping and even spacing. The edges being dragged during a
+      resize snap to neighbours' edges and centres with guides (Alt disables);
+      moving an object snaps it to match the gap between two neighbours, or to
+      sit centred between them, with the gaps drawn and measured.
+      Proof: [`e2e/resize-snapping.spec.ts`](e2e/resize-snapping.spec.ts) › `resize snapping and even spacing` ›
+      `a dragged edge snaps to a neighbour's edge with a guide; the anchored edge stays put`,
+      `moving a third object snaps it to the spacing of the other two and shows the gaps`.
+- [ ] Sticky notes that auto-fit their text; tags; voting dots.
+- [ ] Rich text: bold, lists, links.
+- [ ] Minimap and zoom to selection.
+- [ ] Image upload and paste from the clipboard.
+
 ## Unit coverage
 
 The model underneath is covered by Vitest (`pnpm test`):
@@ -227,6 +253,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
+- Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`
 - Server rooms, roles and HTTP API: `server/src/app.test.ts`
 

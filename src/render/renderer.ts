@@ -8,10 +8,10 @@ import {
   visibleWorldBox,
   worldToScreen,
 } from '../model/geometry';
-import { FRAME_TITLE_HEIGHT, Scene } from '../model/scene';
-import type { Guide } from '../model/snap';
+import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '../model/scene';
+import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
-import type { Id, Shape, StickyShape, TextShape } from '../model/types';
+import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
 
 export const HANDLE_SIZE = 8;
 /** Below this zoom, same-style shapes are merged into shared paths. */
@@ -39,8 +39,10 @@ export interface Overlay {
   preview: Shape | null;
   /** Shape whose side anchors are shown while dragging a connector. */
   anchorTargetId: Id | null;
-  /** Snap guides to draw while moving. */
+  /** Snap guides to draw while moving or resizing. */
   guides: Guide[];
+  /** Equal-gap markers to draw while moving. */
+  spacingGuides: SpacingGuide[];
   /** Collaborators' cursors and selections. */
   peers: Peer[];
   /** Comment pins. */
@@ -219,6 +221,46 @@ export function renderBoard(
       ctx.stroke();
     }
     ctx.setLineDash([]);
+  }
+  if (overlay.spacingGuides.length) {
+    ctx.strokeStyle = '#e91e63';
+    ctx.fillStyle = '#e91e63';
+    ctx.lineWidth = 1;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (const g of overlay.spacingGuides) {
+      for (const [from, to] of g.gaps) {
+        const a = g.axis === 'x' ? worldToScreen(cam, { x: from, y: g.at }) : worldToScreen(cam, { x: g.at, y: from });
+        const b = g.axis === 'x' ? worldToScreen(cam, { x: to, y: g.at }) : worldToScreen(cam, { x: g.at, y: to });
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        // End ticks perpendicular to the gap.
+        if (g.axis === 'x') {
+          ctx.moveTo(a.x, a.y - 5);
+          ctx.lineTo(a.x, a.y + 5);
+          ctx.moveTo(b.x, b.y - 5);
+          ctx.lineTo(b.x, b.y + 5);
+        } else {
+          ctx.moveTo(a.x - 5, a.y);
+          ctx.lineTo(a.x + 5, a.y);
+          ctx.moveTo(b.x - 5, b.y);
+          ctx.lineTo(b.x + 5, b.y);
+        }
+        ctx.stroke();
+        const label = `${Math.round(to - from)}`;
+        if (g.axis === 'x') ctx.fillText(label, (a.x + b.x) / 2, a.y - 4);
+        else {
+          ctx.save();
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, a.x + 7, (a.y + b.y) / 2);
+          ctx.restore();
+        }
+      }
+    }
+    ctx.textAlign = 'start';
   }
   for (const peer of overlay.peers) {
     const ids = peer.selection.filter((id) => scene.has(id));
@@ -473,6 +515,43 @@ class Batch {
   }
 }
 
+/** Draw an arrowhead at `tip`, pointing along `angle` (radians), in the current fill/stroke style. */
+function drawArrowHead(ctx: CanvasRenderingContext2D, kind: ArrowHead, tip: Vec, angle: number, size: number): void {
+  switch (kind) {
+    case 'none':
+      return;
+    case 'arrow':
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - size * Math.cos(angle - 0.4), tip.y - size * Math.sin(angle - 0.4));
+      ctx.lineTo(tip.x - size * Math.cos(angle + 0.4), tip.y - size * Math.sin(angle + 0.4));
+      ctx.closePath();
+      ctx.fill();
+      return;
+    case 'open':
+      ctx.beginPath();
+      ctx.moveTo(tip.x - size * Math.cos(angle - 0.45), tip.y - size * Math.sin(angle - 0.45));
+      ctx.lineTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - size * Math.cos(angle + 0.45), tip.y - size * Math.sin(angle + 0.45));
+      ctx.stroke();
+      return;
+    case 'dot':
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    case 'bar': {
+      const nx = -Math.sin(angle) * size * 0.55;
+      const ny = Math.cos(angle) * size * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(tip.x + nx, tip.y + ny);
+      ctx.lineTo(tip.x - nx, tip.y - ny);
+      ctx.stroke();
+      return;
+    }
+  }
+}
+
 /**
  * Draw one shape in world coordinates. `base` is the context transform to
  * restore after drawing a rotated shape; it avoids save/restore per shape.
@@ -492,19 +571,31 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       ctx.lineWidth = s.strokeWidth;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
+      const afterA = pts[1] ?? b;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       if (g.curve) ctx.bezierCurveTo(g.curve.c1.x, g.curve.c1.y, g.curve.c2.x, g.curve.c2.y, b.x, b.y);
       else for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
       ctx.stroke();
-      const ang = Math.atan2(b.y - beforeB.y, b.x - beforeB.x);
       const size = 8 + s.strokeWidth;
-      ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - size * Math.cos(ang - 0.4), b.y - size * Math.sin(ang - 0.4));
-      ctx.lineTo(b.x - size * Math.cos(ang + 0.4), b.y - size * Math.sin(ang + 0.4));
-      ctx.closePath();
-      ctx.fill();
+      drawArrowHead(ctx, s.endArrow, b, Math.atan2(b.y - beforeB.y, b.x - beforeB.x), size);
+      drawArrowHead(ctx, s.startArrow, a, Math.atan2(a.y - afterA.y, a.x - afterA.x), size);
+      if (s.label && zoom * 12 >= 4) {
+        const box = connectorLabelBox(s.label, polylineMidpoint(pts));
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = s.stroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(box.x, box.y, box.w, box.h, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#222222';
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.label, box.x + box.w / 2, box.y + box.h / 2, box.w - 6);
+        ctx.textAlign = 'start';
+      }
       return;
     }
     default:

@@ -7,7 +7,7 @@ import {
   pointInBox,
   rotatePoint,
 } from './geometry';
-import { FRAME_TITLE_HEIGHT, Scene } from './scene';
+import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from './scene';
 import type { Id, Shape } from './types';
 
 /** Does the point hit the shape? `tolerance` is in world units. */
@@ -17,6 +17,7 @@ export function hitShape(scene: Scene, s: Shape, p: Vec, tolerance: number): boo
       return false;
     case 'connector': {
       const pts = scene.connectorGeometry(s).points;
+      if (s.label && pointInBox(p, grow(connectorLabelBox(s.label, polylineMidpoint(pts)), tolerance))) return true;
       for (let i = 0; i + 1 < pts.length; i++) {
         if (distToSegment(p, pts[i], pts[i + 1]) <= tolerance + s.strokeWidth / 2 + 1) return true;
       }

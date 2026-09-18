@@ -53,6 +53,9 @@ export function connector(id: string, startId: string | null, endId: string | nu
     stroke: '#000',
     strokeWidth: 2,
     style: 'straight',
+    startArrow: 'none',
+    endArrow: 'arrow',
+    label: '',
     start: { shapeId: startId, point: a, anchor: 'auto' },
     end: { shapeId: endId, point: b, anchor: 'auto' },
   };

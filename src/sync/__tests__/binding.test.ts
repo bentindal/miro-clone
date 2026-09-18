@@ -77,7 +77,7 @@ describe('DocBinding', () => {
     void bindB;
   });
 
-  it('syncs z-order with a minimal splice and repairs duplicates on read', () => {
+  it('syncs z-order through per-shape keys and converges after concurrent reorders', () => {
     const { a, b } = pair();
     const sceneA = new Scene();
     const sceneB = new Scene();
@@ -88,10 +88,64 @@ describe('DocBinding', () => {
     sceneA.bringToFront(['b']);
     bindA.pushLocal();
     expect(sceneB.ids()).toEqual(['a', 'c', 'd', 'b']);
-    // A duplicate sneaking into the array (as concurrent reorders can produce) is dropped.
-    b.transact(() => bindB.order.insert(0, ['d']), 'someone-else');
+    // Only the moved shape got a new key.
+    const keysBefore = new Map([...bindA.shapes].map(([id, m]) => [id, m.get('z')]));
+    sceneA.sendToBack(['d']);
+    bindA.pushLocal();
+    const keysAfter = new Map([...bindA.shapes].map(([id, m]) => [id, m.get('z')]));
+    expect([...keysAfter].filter(([id, z]) => keysBefore.get(id) !== z).map(([id]) => id)).toEqual(['d']);
     expect(sceneB.ids()).toEqual(['d', 'a', 'c', 'b']);
-    expect(new Set(sceneB.ids()).size).toBe(4);
+
+    // Two people reorder at the same time while disconnected; after merging both see the same
+    // order with every shape exactly once.
+    const offA = new Y.Doc();
+    const offB = new Y.Doc();
+    Y.applyUpdate(offA, Y.encodeStateAsUpdate(a));
+    Y.applyUpdate(offB, Y.encodeStateAsUpdate(b));
+    const sA = new Scene();
+    const sB = new Scene();
+    const oA = new DocBinding(offA, sA, { a: true }, () => undefined);
+    const oB = new DocBinding(offB, sB, { b: true }, () => undefined);
+    oA.adoptDocument();
+    oB.adoptDocument();
+    sA.bringToFront(['a']);
+    oA.pushLocal();
+    sB.bringToFront(['c']);
+    oB.pushLocal();
+    Y.applyUpdate(offA, Y.encodeStateAsUpdate(offB));
+    Y.applyUpdate(offB, Y.encodeStateAsUpdate(offA));
+    expect(sA.ids()).toEqual(sB.ids());
+    expect(new Set(sA.ids()).size).toBe(4);
+    expect(sA.ids().slice(-2).sort()).toEqual(['a', 'c']);
+    void bindB;
+  });
+
+  it('reads boards written before keys existed and migrates them when writable', () => {
+    const legacy = new Y.Doc();
+    const shapes = legacy.getMap<Y.Map<unknown>>('shapes');
+    const order = legacy.getArray<string>('order');
+    legacy.transact(() => {
+      for (const id of ['x', 'y', 'z']) {
+        const m = new Y.Map<unknown>();
+        for (const [k, v] of Object.entries(rect(id))) if (k !== 'id') m.set(k, v);
+        shapes.set(id, m);
+      }
+      order.push(['z', 'x', 'y']);
+    });
+    const viewerScene = new Scene();
+    const viewer = new DocBinding(legacy, viewerScene, { v: true }, () => undefined);
+    viewer.writable = false;
+    viewer.adoptDocument();
+    expect(viewerScene.ids()).toEqual(['z', 'x', 'y']);
+    expect([...shapes.values()].every((m) => !m.has('z'))).toBe(true);
+
+    const editorScene = new Scene();
+    const editor = new DocBinding(legacy, editorScene, { e: true }, () => undefined);
+    editor.adoptDocument();
+    expect(editorScene.ids()).toEqual(['z', 'x', 'y']);
+    expect([...shapes.values()].every((m) => typeof m.get('z') === 'string')).toBe(true);
+    // The viewer sees the migration and keeps the same order.
+    expect(viewerScene.ids()).toEqual(['z', 'x', 'y']);
   });
 
   it('adoptDocument loads an existing document or seeds an empty one', () => {
