@@ -41,7 +41,10 @@ Single-user editing of a board in the browser. No networking yet.
       `a connector dragged between two shapes attaches to both and follows them`,
       `a connector can start on empty board and end on a shape`,
       `deleting a shape frees the attached connector end at its last position`.
-- [ ] Freehand pen. Drag to draw a stroke made of the pointer path.
+- [x] Freehand pen. Drag to draw a stroke made of the pointer path.
+      Proof: [`e2e/pen.spec.ts`](e2e/pen.spec.ts) › `freehand pen` ›
+      `dragging draws a stroke that follows the pointer path`,
+      `a stroke can be selected by clicking on it and deleted`.
 - [ ] Text. Click with the text tool to place a text object; double-click any
       text-bearing object to edit it in place.
 - [ ] Frames. Drag to create a titled frame; objects inside a frame move with it.
