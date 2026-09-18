@@ -138,3 +138,51 @@ export function ctrl(page: Page): string {
 export async function press(page: Page, combo: string): Promise<void> {
   await page.keyboard.press(combo);
 }
+
+export type HandleName = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
+
+/** Screen (canvas-local) position of a selection handle. */
+export async function handle(page: Page, name: HandleName): Promise<Pt> {
+  const h = await page.evaluate(() => (window as unknown as { __wb: { handles: () => Record<string, Pt> | null } }).__wb.handles());
+  if (!h) throw new Error('no selection frame');
+  return h[name];
+}
+
+export async function currentTool(page: Page): Promise<string> {
+  return page.evaluate(() => (window as unknown as { __wb: { tool: () => string } }).__wb.tool());
+}
+
+/** Draw a sticky note at a point and return its record. */
+export async function placeSticky(ctx: BoardCtx, at: Pt): Promise<ShapeRecord> {
+  const before = new Set((await shapes(ctx.page)).map((s) => s.id));
+  await selectTool(ctx.page, 'sticky');
+  await click(ctx, at);
+  const created = (await shapes(ctx.page)).filter((s) => !before.has(s.id));
+  expect(created).toHaveLength(1);
+  return created[0];
+}
+
+/** Type into the active text editor and commit with Escape. */
+export async function typeAndCommit(page: Page, text: string): Promise<void> {
+  const editor = page.getByTestId('text-editor');
+  await expect(editor).toBeVisible();
+  await expect(editor).toBeFocused();
+  await page.keyboard.type(text);
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+}
+
+/** Dispatch a trackpad-style pinch (wheel with ctrl) at a canvas-local point. */
+export async function pinch(ctx: BoardCtx, at: Pt, deltaY: number): Promise<void> {
+  const p = pagePt(ctx, at);
+  await ctx.page.getByTestId('canvas').dispatchEvent('wheel', {
+    deltaY,
+    deltaX: 0,
+    deltaMode: 0,
+    ctrlKey: true,
+    clientX: p.x,
+    clientY: p.y,
+    bubbles: true,
+    cancelable: true,
+  });
+}
