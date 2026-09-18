@@ -35,8 +35,12 @@ Single-user editing of a board in the browser. No networking yet.
       `drag with the line tool creates a line between the two points`,
       `a plain click with a shape tool drops a default-sized shape`,
       `keyboard shortcuts pick tools`.
-- [ ] Connectors. Drag from one shape to another; the connector's endpoints stay
+- [x] Connectors. Drag from one shape to another; the connector's endpoints stay
       attached to the shapes' edges when either shape moves.
+      Proof: [`e2e/connectors.spec.ts`](e2e/connectors.spec.ts) › `connectors` ›
+      `a connector dragged between two shapes attaches to both and follows them`,
+      `a connector can start on empty board and end on a shape`,
+      `deleting a shape frees the attached connector end at its last position`.
 - [ ] Freehand pen. Drag to draw a stroke made of the pointer path.
 - [ ] Text. Click with the text tool to place a text object; double-click any
       text-bearing object to edit it in place.
