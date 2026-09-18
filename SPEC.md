@@ -58,8 +58,12 @@ Single-user editing of a board in the browser. No networking yet.
 
 ### Editing
 
-- [ ] Multi-select with marquee. Drag on empty board with the select tool to
+- [x] Multi-select with marquee. Drag on empty board with the select tool to
       select every object inside the marquee; shift-click toggles membership.
+      Proof: [`e2e/marquee.spec.ts`](e2e/marquee.spec.ts) › `multi-select with marquee` ›
+      `dragging on empty board selects everything fully inside; shift-click toggles`,
+      `a marquee with shift adds to the existing selection`,
+      `moving a multi-selection moves every member`.
 - [ ] Group and ungroup. Grouped objects select and move as one.
 - [ ] Resize and rotate handles on the selection.
 - [ ] Copy and paste, including groups and connectors between copied shapes.
