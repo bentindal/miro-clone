@@ -51,7 +51,11 @@ Single-user editing of a board in the browser. No networking yet.
       `text tool places a text object and edits it in place`,
       `committing an empty text object discards it`,
       `clicking elsewhere commits the edit`.
-- [ ] Frames. Drag to create a titled frame; objects inside a frame move with it.
+- [x] Frames. Drag to create a titled frame; objects inside a frame move with it.
+      Proof: [`e2e/frames.spec.ts`](e2e/frames.spec.ts) › `frames` ›
+      `objects inside a frame move with it; the title can be edited`,
+      `a frame drawn around existing shapes adopts them and sits behind them`.
+
 ### Editing
 
 - [ ] Multi-select with marquee. Drag on empty board with the select tool to
