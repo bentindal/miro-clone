@@ -27,7 +27,14 @@ Single-user editing of a board in the browser. No networking yet.
       Proof: [`e2e/sticky.spec.ts`](e2e/sticky.spec.ts) › `sticky notes` ›
       `click places a note, double-click edits its text`,
       `each note gets a colour and several can be placed`.
-- [ ] Rectangles, ellipses and lines. Drag with the matching tool to create one.
+- [x] Rectangles, ellipses and lines. Drag with the matching tool to create one.
+      Proof: [`e2e/shapes.spec.ts`](e2e/shapes.spec.ts) › `rectangles, ellipses and lines` ›
+      `drag with the rectangle tool creates a rectangle of that size`,
+      `dragging backwards still produces a normalised box`,
+      `drag with the ellipse tool creates an ellipse`,
+      `drag with the line tool creates a line between the two points`,
+      `a plain click with a shape tool drops a default-sized shape`,
+      `keyboard shortcuts pick tools`.
 - [ ] Connectors. Drag from one shape to another; the connector's endpoints stay
       attached to the shapes' edges when either shape moves.
 - [ ] Freehand pen. Drag to draw a stroke made of the pointer path.
