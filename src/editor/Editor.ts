@@ -96,7 +96,7 @@ export class Editor {
   private listeners = new Set<() => void>();
   private version = 0;
   private canvas: HTMLCanvasElement | null = null;
-  private renderScheduled = false;
+  private renderHandle: number | null = null;
   private stickyColorIndex = 0;
 
   // ---- subscriptions -----------------------------------------------------
@@ -130,16 +130,19 @@ export class Editor {
   }
 
   requestRender(): void {
-    if (this.renderScheduled || typeof requestAnimationFrame !== 'function') return;
-    this.renderScheduled = true;
-    requestAnimationFrame(() => {
-      this.renderScheduled = false;
+    if (this.renderHandle !== null || typeof requestAnimationFrame !== 'function') return;
+    this.renderHandle = requestAnimationFrame(() => {
+      this.renderHandle = null;
       this.renderNow();
     });
   }
 
   /** Synchronously draw the board; returns the time spent in milliseconds. */
   renderNow(): number {
+    if (this.renderHandle !== null) {
+      cancelAnimationFrame(this.renderHandle);
+      this.renderHandle = null;
+    }
     const canvas = this.canvas;
     if (!canvas) return 0;
     const ctx = canvas.getContext('2d');

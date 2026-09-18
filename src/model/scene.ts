@@ -16,6 +16,9 @@ export interface SceneSnapshot {
 
 export const FRAME_TITLE_HEIGHT = 24;
 
+/** Shape records are immutable, so their bounds can be cached by identity. */
+const boundsCache = new WeakMap<Shape, Box>();
+
 /**
  * The scene graph: a flat map of immutable shape records plus a z-order list.
  * Hierarchy (groups and frames) is expressed through `parentId`; positions are
@@ -26,6 +29,8 @@ export class Scene {
   private shapes = new Map<Id, Shape>();
   /** Bottom to top. */
   private order: Id[] = [];
+  /** Cached result of `all()`; cleared by every mutation. */
+  private allCache: Shape[] | null = null;
 
   // ---- basic CRUD --------------------------------------------------------
 
@@ -47,14 +52,20 @@ export class Scene {
     return s;
   }
 
-  /** All shapes in z-order (bottom first). */
+  /** All shapes in z-order (bottom first). The array is shared; do not mutate it. */
   all(): Shape[] {
+    if (this.allCache) return this.allCache;
     const out: Shape[] = [];
     for (const id of this.order) {
       const s = this.shapes.get(id);
       if (s) out.push(s);
     }
+    this.allCache = out;
     return out;
+  }
+
+  private touch(): void {
+    this.allCache = null;
   }
 
   ids(): Id[] {
@@ -67,6 +78,7 @@ export class Scene {
 
   add(shape: Shape, index?: number): Shape {
     if (this.shapes.has(shape.id)) throw new Error(`Duplicate shape id ${shape.id}`);
+    this.touch();
     this.shapes.set(shape.id, shape);
     if (index === undefined || index < 0 || index >= this.order.length) this.order.push(shape.id);
     else this.order.splice(index, 0, shape.id);
@@ -77,6 +89,7 @@ export class Scene {
   update<T extends Shape>(id: Id, patch: Partial<Omit<T, 'id' | 'type'>>): T {
     const cur = this.mustGet(id) as T;
     const next = { ...cur, ...patch, id: cur.id, type: cur.type } as T;
+    this.touch();
     this.shapes.set(id, next);
     return next;
   }
@@ -86,6 +99,7 @@ export class Scene {
    * shape become free at their last resolved position.
    */
   remove(ids: Iterable<Id>): Id[] {
+    this.touch();
     const toRemove = new Set<Id>();
     for (const id of ids) {
       if (!this.shapes.has(id)) continue;
@@ -111,6 +125,7 @@ export class Scene {
   }
 
   clear(): void {
+    this.touch();
     this.shapes.clear();
     this.order = [];
   }
@@ -215,8 +230,13 @@ export class Scene {
         const { a, b } = this.connectorPoints(s);
         return boundsOfPoints([a, b]);
       }
-      default:
-        return rotatedBounds(s, s.rotation);
+      default: {
+        const cached = boundsCache.get(s);
+        if (cached) return cached;
+        const b = rotatedBounds(s, s.rotation);
+        boundsCache.set(s, b);
+        return b;
+      }
     }
   }
 
@@ -262,6 +282,7 @@ export class Scene {
   /** Move shapes (and their descendants) by a delta. */
   translate(ids: Iterable<Id>, dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
+    this.touch();
     const targets = this.expandToLeaves(ids);
     for (const id of targets) {
       const s = this.mustGet(id);
@@ -280,6 +301,7 @@ export class Scene {
   /** Rotate shapes around a pivot by `angle` radians. */
   rotate(ids: Iterable<Id>, pivot: Vec, angle: number): void {
     if (angle === 0) return;
+    this.touch();
     for (const id of this.expandToLeaves(ids)) {
       const s = this.mustGet(id);
       if (s.type === 'connector') {
@@ -299,6 +321,7 @@ export class Scene {
   setBox(id: Id, box: Box): void {
     const s = this.mustGet(id);
     if (!isBoxed(s)) return;
+    this.touch();
     this.shapes.set(id, resizeBoxed(s, box));
   }
 
@@ -310,6 +333,7 @@ export class Scene {
     const sx = from.w === 0 ? 1 : to.w / from.w;
     const sy = from.h === 0 ? 1 : to.h / from.h;
     const map = (p: Vec): Vec => ({ x: to.x + (p.x - from.x) * sx, y: to.y + (p.y - from.y) * sy });
+    this.touch();
     for (const id of this.expandToLeaves(ids)) {
       const s = this.mustGet(id);
       if (s.type === 'connector') {
@@ -352,18 +376,21 @@ export class Scene {
   }
 
   bringToFront(ids: Iterable<Id>): void {
+    this.touch();
     const block = this.orderedBlock(ids);
     const moved = this.order.filter((id) => block.has(id));
     this.order = [...this.order.filter((id) => !block.has(id)), ...moved];
   }
 
   sendToBack(ids: Iterable<Id>): void {
+    this.touch();
     const block = this.orderedBlock(ids);
     const moved = this.order.filter((id) => block.has(id));
     this.order = [...moved, ...this.order.filter((id) => !block.has(id))];
   }
 
   bringForward(ids: Iterable<Id>): void {
+    this.touch();
     const block = this.orderedBlock(ids);
     const order = this.order;
     for (let i = order.length - 2; i >= 0; i--) {
@@ -374,6 +401,7 @@ export class Scene {
   }
 
   sendBackward(ids: Iterable<Id>): void {
+    this.touch();
     const block = this.orderedBlock(ids);
     const order = this.order;
     for (let i = 1; i < order.length; i++) {
@@ -390,6 +418,7 @@ export class Scene {
   }
 
   restore(snap: SceneSnapshot): void {
+    this.touch();
     this.shapes = new Map(snap.shapes);
     this.order = [...snap.order];
   }

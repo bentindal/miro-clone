@@ -22,6 +22,8 @@ export function installTestHooks(editor: Editor): void {
     renderNow: () => editor.renderNow(),
     stats: () => ({ ...editor.lastRenderStats, ms: editor.lastRenderMs }),
     history: () => ({ undo: editor.history.undoDepth, redo: editor.history.redoDepth }),
+    handles: () => editor.selectionFrame?.handles ?? null,
+    tool: () => editor.tool,
   };
   (window as unknown as { __wb: typeof api }).__wb = api;
 }

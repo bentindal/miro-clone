@@ -44,8 +44,11 @@ export function Toolbar({ editor }: { editor: Editor }) {
     });
   };
 
+  // Buttons never take focus so keyboard shortcuts keep reaching the board.
+  const noFocus = (e: React.MouseEvent) => e.preventDefault();
+
   return (
-    <div className="toolbar" role="toolbar" aria-label="Tools">
+    <div className="toolbar" role="toolbar" aria-label="Tools" onMouseDown={noFocus}>
       <div className="toolbar-group">
         {TOOLS.map((tool) => (
           <button

@@ -12,6 +12,10 @@ import { FRAME_TITLE_HEIGHT, Scene } from '../model/scene';
 import type { Id, Shape, StickyShape, TextShape } from '../model/types';
 
 export const HANDLE_SIZE = 8;
+/** Below this zoom, same-style shapes are merged into shared paths. */
+export const BATCH_ZOOM = 0.3;
+/** Largest number of shapes merged into one path; very large paths rasterise slowly. */
+export const BATCH_LIMIT = 24;
 export const ROTATE_HANDLE_OFFSET = 28;
 export const SELECTION_COLOR = '#2f6fed';
 
@@ -126,6 +130,7 @@ export function renderBoard(
   const stats: RenderStats = { drawn: 0, culled: 0 };
 
   ctx.setTransform(ctx.getTransform().multiply(new DOMMatrix([cam.zoom, 0, 0, cam.zoom, cam.tx, cam.ty])));
+  const base = matrixOf(ctx);
   const all = scene.all();
   // Frames form a background layer.
   for (const s of all) {
@@ -134,20 +139,38 @@ export function renderBoard(
       stats.culled++;
       continue;
     }
-    drawShape(ctx, scene, s, cam.zoom);
+    drawShape(ctx, scene, s, cam.zoom, base);
     stats.drawn++;
   }
-  for (const s of all) {
-    if (s.type === 'frame' || s.type === 'group') continue;
-    if (overlay.editingId === s.id) continue;
-    if (!boxesIntersect(visible, scene.boundsOfShape(s))) {
-      stats.culled++;
-      continue;
+  if (cam.zoom < BATCH_ZOOM) {
+    const batch = new Batch(ctx, cam.zoom);
+    for (const s of all) {
+      if (s.type === 'frame' || s.type === 'group') continue;
+      if (overlay.editingId === s.id) continue;
+      if (!boxesIntersect(visible, scene.boundsOfShape(s))) {
+        stats.culled++;
+        continue;
+      }
+      if (!batch.add(s)) {
+        batch.flush();
+        drawShape(ctx, scene, s, cam.zoom, base);
+      }
+      stats.drawn++;
     }
-    drawShape(ctx, scene, s, cam.zoom);
-    stats.drawn++;
+    batch.flush();
+  } else {
+    for (const s of all) {
+      if (s.type === 'frame' || s.type === 'group') continue;
+      if (overlay.editingId === s.id) continue;
+      if (!boxesIntersect(visible, scene.boundsOfShape(s))) {
+        stats.culled++;
+        continue;
+      }
+      drawShape(ctx, scene, s, cam.zoom, base);
+      stats.drawn++;
+    }
   }
-  if (overlay.preview) drawShape(ctx, scene, overlay.preview, cam.zoom);
+  if (overlay.preview) drawShape(ctx, scene, overlay.preview, cam.zoom, base);
   ctx.restore();
 
   // Screen-space overlays.
@@ -229,8 +252,133 @@ function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame): v
   ctx.stroke();
 }
 
-/** Draw one shape in world coordinates. */
-export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape, zoom: number): void {
+/**
+ * Accumulates consecutive shapes that share fill, stroke and line width into
+ * one path so the whole run costs a single fill and a single stroke call.
+ * Used when zoomed out far enough that per-shape drawing order within a run
+ * cannot be told apart.
+ */
+class Batch {
+  private fill: string | null = null;
+  private stroke: string | null = null;
+  private lineWidth = 0;
+  private count = 0;
+  /** Minimum world-space distance between pen points worth drawing. */
+  private readonly minStep: number;
+
+  constructor(
+    private readonly ctx: CanvasRenderingContext2D,
+    zoom: number,
+  ) {
+    this.minStep = 0.75 / zoom;
+  }
+
+  /** Returns false when the shape cannot be batched and must be drawn directly. */
+  add(s: Shape): boolean {
+    let fill: string | null;
+    let stroke: string | null;
+    let lineWidth: number;
+    switch (s.type) {
+      case 'rect':
+      case 'ellipse':
+        fill = s.fill;
+        stroke = s.stroke;
+        lineWidth = 2;
+        break;
+      case 'sticky':
+        fill = s.fill;
+        stroke = null;
+        lineWidth = 0;
+        break;
+      case 'line':
+        fill = null;
+        stroke = s.stroke;
+        lineWidth = 2;
+        break;
+      case 'pen':
+        fill = null;
+        stroke = s.stroke;
+        lineWidth = s.strokeWidth;
+        break;
+      default:
+        return false;
+    }
+    if (this.count > 0 && (this.count >= BATCH_LIMIT || fill !== this.fill || stroke !== this.stroke || lineWidth !== this.lineWidth)) this.flush();
+    if (this.count === 0) {
+      this.fill = fill;
+      this.stroke = stroke;
+      this.lineWidth = lineWidth;
+      this.ctx.beginPath();
+    }
+    this.count++;
+    const ctx = this.ctx;
+    const cx = s.x + s.w / 2;
+    const cy = s.y + s.h / 2;
+    const cos = Math.cos(s.rotation);
+    const sin = Math.sin(s.rotation);
+    // Local point (relative to the shape origin) to world, applying rotation about the centre.
+    const px = (lx: number, ly: number) => cx + (s.x + lx - cx) * cos - (s.y + ly - cy) * sin;
+    const py = (lx: number, ly: number) => cy + (s.x + lx - cx) * sin + (s.y + ly - cy) * cos;
+    switch (s.type) {
+      case 'rect':
+      case 'sticky':
+        if (s.rotation === 0) ctx.rect(s.x, s.y, s.w, s.h);
+        else {
+          ctx.moveTo(px(0, 0), py(0, 0));
+          ctx.lineTo(px(s.w, 0), py(s.w, 0));
+          ctx.lineTo(px(s.w, s.h), py(s.w, s.h));
+          ctx.lineTo(px(0, s.h), py(0, s.h));
+          ctx.closePath();
+        }
+        break;
+      case 'ellipse':
+        ctx.moveTo(px(s.w, s.h / 2), py(s.w, s.h / 2));
+        ctx.ellipse(cx, cy, Math.max(s.w / 2, 0), Math.max(s.h / 2, 0), s.rotation, 0, Math.PI * 2);
+        break;
+      case 'line':
+        ctx.moveTo(px(s.points[0].x, s.points[0].y), py(s.points[0].x, s.points[0].y));
+        ctx.lineTo(px(s.points[1].x, s.points[1].y), py(s.points[1].x, s.points[1].y));
+        break;
+      case 'pen': {
+        const pts = s.points;
+        let last = pts[0];
+        ctx.moveTo(px(last.x, last.y), py(last.x, last.y));
+        for (let i = 1; i < pts.length; i++) {
+          const p = pts[i];
+          if (i < pts.length - 1 && Math.abs(p.x - last.x) + Math.abs(p.y - last.y) < this.minStep) continue;
+          ctx.lineTo(px(p.x, p.y), py(p.x, p.y));
+          last = p;
+        }
+        if (pts.length === 1) ctx.lineTo(px(last.x, last.y) + 0.01, py(last.x, last.y));
+        break;
+      }
+    }
+    return true;
+  }
+
+  flush(): void {
+    if (this.count === 0) return;
+    const ctx = this.ctx;
+    if (this.fill !== null) {
+      ctx.fillStyle = this.fill;
+      ctx.fill();
+    }
+    if (this.stroke !== null) {
+      ctx.strokeStyle = this.stroke;
+      ctx.lineWidth = this.lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+    this.count = 0;
+  }
+}
+
+/**
+ * Draw one shape in world coordinates. `base` is the context transform to
+ * restore after drawing a rotated shape; it avoids save/restore per shape.
+ */
+export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape, zoom: number, base?: Matrix): void {
   switch (s.type) {
     case 'group':
       return;
@@ -257,12 +405,21 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       break;
   }
   const rotated = s.rotation !== 0;
-  if (rotated) {
-    const c = boxCenter(s);
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.rotate(s.rotation);
-    ctx.translate(-c.x, -c.y);
+  const restore = base ?? (rotated ? matrixOf(ctx) : undefined);
+  if (rotated && restore) {
+    // base * translate(c) * rotate(r) * translate(-c), composed by hand.
+    const cx = s.x + s.w / 2;
+    const cy = s.y + s.h / 2;
+    const cos = Math.cos(s.rotation);
+    const sin = Math.sin(s.rotation);
+    const [a, b, c, d, e, f] = restore;
+    const ra = a * cos + c * sin;
+    const rb = b * cos + d * sin;
+    const rc = -a * sin + c * cos;
+    const rd = -b * sin + d * cos;
+    const tx = cx - ra * cx - rc * cy;
+    const ty = cy - rb * cx - rd * cy;
+    ctx.setTransform(ra, rb, rc, rd, a * tx + c * ty + e, b * tx + d * ty + f);
   }
   switch (s.type) {
     case 'rect':
@@ -334,26 +491,32 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       break;
     }
   }
-  if (rotated) ctx.restore();
+  if (rotated && restore) ctx.setTransform(restore[0], restore[1], restore[2], restore[3], restore[4], restore[5]);
+}
+
+/** [a, b, c, d, e, f] of the current context transform. */
+export type Matrix = [number, number, number, number, number, number];
+
+function matrixOf(ctx: CanvasRenderingContext2D): Matrix {
+  const m = ctx.getTransform();
+  return [m.a, m.b, m.c, m.d, m.e, m.f];
 }
 
 function drawText(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, zoom: number, pad: number): void {
   const { size, font } = fontFor(s);
-  if (size * zoom < 3) return; // too small to read; skip for speed
+  if (size * zoom < 5) return; // too small to read; skip for speed
   if (!s.text) return;
-  const lines = wrappedLines(ctx, s, Math.max(s.w - pad * 2, 1), font);
+  const width = Math.max(s.w - pad * 2, 1);
+  const lines = wrappedLines(ctx, s, width, font);
   ctx.font = font;
   ctx.fillStyle = s.type === 'text' ? s.color : '#222222';
   ctx.textBaseline = 'top';
   const lineHeight = size * 1.25;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(s.x, s.y, s.w, s.h);
-  ctx.clip();
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], s.x + pad, s.y + pad + i * lineHeight);
+  const maxLines = Math.max(1, Math.floor((s.h - pad * 2 + lineHeight * 0.25) / lineHeight));
+  const n = Math.min(lines.length, maxLines);
+  for (let i = 0; i < n; i++) {
+    ctx.fillText(lines[i], s.x + pad, s.y + pad + i * lineHeight, width);
   }
-  ctx.restore();
 }
 
 /** Render the whole board (or a region) to an offscreen canvas, e.g. for PNG export. */
@@ -368,8 +531,10 @@ export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 2
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, w, h);
   ctx.setTransform(scale, 0, 0, scale, (padding - region.x) * scale, (padding - region.y) * scale);
-  for (const s of scene.all()) if (s.type === 'frame') drawShape(ctx, scene, s, scale);
-  for (const s of scene.all()) if (s.type !== 'frame') drawShape(ctx, scene, s, scale);
+  const base = matrixOf(ctx);
+  const all = scene.all();
+  for (const s of all) if (s.type === 'frame') drawShape(ctx, scene, s, scale, base);
+  for (const s of all) if (s.type !== 'frame') drawShape(ctx, scene, s, scale, base);
   return canvas;
 }
 
