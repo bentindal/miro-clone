@@ -109,6 +109,7 @@ export class Editor {
   lastRenderStats: RenderStats = { drawn: 0, culled: 0 };
   lastRenderMs = 0;
   private drag: Drag | null = null;
+  private pinch: { center: Vec; span: number } | null = null;
   private txSnap: SceneSnapshot | null = null;
   private listeners = new Set<() => void>();
   private version = 0;
@@ -293,6 +294,39 @@ export class Editor {
 
   toWorld(p: Vec): Vec {
     return screenToWorld(this.camera, p);
+  }
+
+  // ---- two-finger gestures -----------------------------------------------
+
+  /** True while a two-finger pan/pinch gesture is in progress. */
+  get isPinching(): boolean {
+    return this.pinch !== null;
+  }
+
+  /** Start a two-finger gesture from two screen points. Cancels any single-pointer drag. */
+  beginPinch(a: Vec, b: Vec): void {
+    this.cancelDrag();
+    this.pinch = { center: midpoint(a, b), span: Math.max(dist(a, b), 1) };
+    this.notify();
+  }
+
+  /** Update a two-finger gesture: pan by the centroid's movement, zoom by the change in finger distance. */
+  updatePinch(a: Vec, b: Vec): void {
+    const g = this.pinch;
+    if (!g) return;
+    const center = midpoint(a, b);
+    const span = Math.max(dist(a, b), 1);
+    let cam = panCamera(this.camera, center.x - g.center.x, center.y - g.center.y);
+    cam = zoomCameraBy(cam, span / g.span, center);
+    g.center = center;
+    g.span = span;
+    this.setCamera(cam);
+  }
+
+  endPinch(): void {
+    if (!this.pinch) return;
+    this.pinch = null;
+    this.notify();
   }
 
   // ---- selection & tools -------------------------------------------------
@@ -1166,6 +1200,10 @@ function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K
   const out = {} as Pick<T, K>;
   for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
   return out;
+}
+
+function midpoint(a: Vec, b: Vec): Vec {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 function sceneChanged(a: SceneSnapshot, b: SceneSnapshot): boolean {

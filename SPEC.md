@@ -137,8 +137,14 @@ today". Same rule as phase 1: a tick needs a passing end-to-end test.
       `grid snap rounds positions to the grid when no neighbour is close`,
       `align and distribute commands arrange a multi-selection and undo as one step each`,
       `distribute needs three objects; align needs two`.
-- [ ] Touch input. Two-finger pan and pinch zoom on touch screens; single
-      finger draws and drags as the mouse does.
+- [x] Touch input. Two-finger pan and pinch zoom on touch screens; single
+      finger draws and drags as the mouse does; a second finger cancels a
+      single-finger drag.
+      Proof: [`e2e/touch.spec.ts`](e2e/touch.spec.ts) › `touch input` ›
+      `two fingers moving together pan the board`,
+      `spreading two fingers zooms in around their midpoint; pinching zooms out`,
+      `a single finger draws and drags like the mouse`,
+      `a second finger landing mid-drag cancels the drag and turns it into a pan`.
 - [ ] Accessibility. The canvas is focusable, objects can be cycled and
       activated from the keyboard, and selection changes are announced to
       assistive technology.

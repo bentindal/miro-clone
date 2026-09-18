@@ -14,6 +14,10 @@ export function Board({ editor }: { editor: Editor }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cursor, setCursor] = useState('default');
+  /** Active touch contacts by pointer id, for two-finger gestures. */
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  /** Set once a second finger lands; cleared when every finger has lifted. */
+  const gestureLatched = useRef(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -73,6 +77,41 @@ export function Board({ editor }: { editor: Editor }) {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  const twoTouches = () => {
+    const pts = [...touches.current.values()];
+    return pts.length >= 2 ? ([pts[0], pts[1]] as const) : null;
+  };
+
+  /** Returns true when the event was consumed by touch-gesture handling. */
+  const touchDown = (e: React.PointerEvent): boolean => {
+    if (e.pointerType !== 'touch') return false;
+    touches.current.set(e.pointerId, local(e));
+    const pair = twoTouches();
+    if (pair && !editor.isPinching) {
+      gestureLatched.current = true;
+      editor.beginPinch(pair[0], pair[1]);
+    }
+    return gestureLatched.current;
+  };
+
+  const touchMove = (e: React.PointerEvent): boolean => {
+    if (e.pointerType !== 'touch') return false;
+    if (!touches.current.has(e.pointerId)) return false;
+    touches.current.set(e.pointerId, local(e));
+    const pair = twoTouches();
+    if (pair && editor.isPinching) editor.updatePinch(pair[0], pair[1]);
+    return gestureLatched.current;
+  };
+
+  const touchUp = (e: React.PointerEvent): boolean => {
+    if (e.pointerType !== 'touch') return false;
+    touches.current.delete(e.pointerId);
+    if (touches.current.size < 2 && editor.isPinching) editor.endPinch();
+    const consumed = gestureLatched.current;
+    if (touches.current.size === 0) gestureLatched.current = false;
+    return consumed;
+  };
+
   return (
     <div ref={hostRef} className="board" data-testid="board" style={{ cursor }}>
       <canvas
@@ -80,18 +119,24 @@ export function Board({ editor }: { editor: Editor }) {
         data-testid="canvas"
         onPointerDown={(e) => {
           (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+          if (touchDown(e)) return;
           editor.onPointerDown(local(e), e.button, mods(e));
         }}
         onPointerMove={(e) => {
+          if (touchMove(e)) return;
           const p = local(e);
           editor.onPointerMove(p, mods(e));
           setCursor(editor.cursorAt(p));
         }}
         onPointerUp={(e) => {
+          if (touchUp(e)) return;
           editor.onPointerUp(local(e), mods(e));
           setCursor(editor.cursorAt(local(e)));
         }}
-        onPointerCancel={() => editor.cancelDrag()}
+        onPointerCancel={(e) => {
+          touchUp(e);
+          editor.cancelDrag();
+        }}
         // Keep focus where it is (e.g. in the text editor) and avoid native text selection.
         onMouseDown={(e) => e.preventDefault()}
         onDoubleClick={(e) => editor.onDoubleClick(local(e))}

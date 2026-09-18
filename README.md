@@ -54,6 +54,7 @@ e2e           Playwright specs, one file per SPEC.md item
 | V H R O L N T P C F | Select, hand, rectangle, ellipse, line, sticky, text, pen, connector, frame |
 | Wheel / Ctrl+wheel | Pan / zoom (trackpad pinch) |
 | Space + drag, middle drag | Pan |
+| Two fingers (touch) | Pan and pinch zoom |
 | Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y | Undo / redo |
 | Ctrl+C / X / V / D | Copy / cut / paste / duplicate |
 | Ctrl+G / Ctrl+Shift+G | Group / ungroup |
