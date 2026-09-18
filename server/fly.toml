@@ -1,0 +1,27 @@
+# Fly.io app for the sync server. Deploy from the repository root:
+#   fly launch --no-deploy --copy-config --config server/fly.toml --dockerfile server/Dockerfile
+#   fly postgres create && fly postgres attach <pg-app> --app <this-app>   # sets DATABASE_URL
+#   fly secrets set CORS_ORIGIN=https://<your-vercel-domain>
+#   fly deploy --config server/fly.toml --dockerfile server/Dockerfile
+app = "whiteboard-sync"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8787"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"

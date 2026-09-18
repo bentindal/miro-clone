@@ -5,7 +5,9 @@ what is in scope. Each checkbox is ticked only when an automated test proves
 the behaviour end to end; the tick links to that test.
 
 Stack: TypeScript, React, Vite. Rendering is a hand-written scene graph drawn
-to an HTML canvas. Unit tests run with Vitest, end-to-end tests with Playwright.
+to an HTML canvas. The shared document is Yjs, synced through a small Node
+server backed by Postgres. Unit tests run with Vitest, end-to-end tests with
+Playwright.
 
 ## Phase 1: canvas core
 
@@ -155,6 +157,44 @@ today". Same rule as phase 1: a tick needs a passing end-to-end test.
       `Enter edits the selected note from the keyboard and the edit is announced`,
       `every control has an accessible name and the tool buttons expose their shortcuts`.
 
+## Phase 2: persist, share, collaborate
+
+Boards live on a sync server and several people edit one at the same time.
+No accounts yet: a board's edit link and view link are its only credentials.
+
+- [x] Boards and share links. Visiting the root creates a board and opens its
+      edit link; the share panel offers an edit link and a distinct view link;
+      bad links show an error; the title syncs.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `boards and share links` ›
+      `visiting the root creates a board and moves to its edit link`,
+      `the share panel offers an edit link and a different view link`,
+      `a wrong token or unknown board shows an error instead of a blank canvas`,
+      `the board title syncs and persists`.
+- [x] Real-time editing. Changes appear for everyone on the board as they
+      happen, including live text edits, and undo only reverts the local
+      person's own steps.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
+      `edits made by one person appear for the other, and each undoes only their own`.
+- [x] Presence. Names, colours, live cursors and selections of the other people
+      on the board; joining, renaming and leaving update the list.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
+      `presence: names, cursors and selections of others are visible`.
+- [x] Server-side persistence. A board keeps its content after everyone leaves
+      and after a reload; the server compacts the update log.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
+      `the board survives everyone leaving: a later visitor gets the saved content`;
+      [`server/src/app.test.ts`](server/src/app.test.ts) › `sync rooms` ›
+      `relays edits between two editors and persists them for a later visitor`.
+- [x] View-only links. Viewers see live changes and presence, cannot edit from
+      the UI, cannot upgrade their link, and the server drops any write they
+      send.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `view-only links` ›
+      `a viewer sees live changes but cannot make any, and the server refuses their writes`;
+      [`server/src/app.test.ts`](server/src/app.test.ts) › `sync rooms` ›
+      `drops document updates from view-only links but still shares their presence`.
+- [ ] Accounts and a board list.
+- [ ] Comments anchored to objects.
+
 ## Unit coverage
 
 The model underneath is covered by Vitest (`pnpm test`):
@@ -166,9 +206,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Serialisation round trip: `src/model/__tests__/serialize.test.ts`
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
+- Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
+- Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`
+- Server rooms, roles and HTTP API: `server/src/app.test.ts`
 
-## Phase 2: collaboration (out of scope for now)
-
-- Real-time multi-user editing.
-- Cursors and presence.
-- Comments.

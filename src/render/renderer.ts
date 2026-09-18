@@ -10,6 +10,7 @@ import {
 } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT, Scene } from '../model/scene';
 import type { Guide } from '../model/snap';
+import type { Peer } from '../editor/Editor';
 import type { Id, Shape, StickyShape, TextShape } from '../model/types';
 
 export const HANDLE_SIZE = 8;
@@ -40,6 +41,8 @@ export interface Overlay {
   anchorTargetId: Id | null;
   /** Snap guides to draw while moving. */
   guides: Guide[];
+  /** Collaborators' cursors and selections. */
+  peers: Peer[];
   editingId: Id | null;
 }
 
@@ -213,8 +216,16 @@ export function renderBoard(
     }
     ctx.setLineDash([]);
   }
+  for (const peer of overlay.peers) {
+    const ids = peer.selection.filter((id) => scene.has(id));
+    if (ids.length) {
+      const b = scene.boundsOfMany(ids);
+      drawBoundsOutline(ctx, b, cam, peer.color, 1.5);
+    }
+  }
   const frame = selectionFrame(scene, overlay.selection, cam);
   if (frame) drawSelectionFrame(ctx, frame);
+  for (const peer of overlay.peers) if (peer.cursor) drawPeerCursor(ctx, worldToScreen(cam, peer.cursor), peer);
   if (overlay.marquee) {
     const tl = worldToScreen(cam, { x: overlay.marquee.x, y: overlay.marquee.y });
     ctx.fillStyle = 'rgba(47,111,237,0.12)';
@@ -246,6 +257,35 @@ function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Box, cam: Camera, c
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.strokeRect(tl.x, tl.y, b.w * cam.zoom, b.h * cam.zoom);
+}
+
+function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer): void {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = peer.color;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 16);
+  ctx.lineTo(4.5, 12);
+  ctx.lineTo(8, 18);
+  ctx.lineTo(10.5, 16.5);
+  ctx.lineTo(7, 11);
+  ctx.lineTo(12, 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  const w = ctx.measureText(peer.name).width + 10;
+  ctx.fillStyle = peer.color;
+  ctx.beginPath();
+  ctx.roundRect(12, 16, w, 18, 4);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(peer.name, 17, 25);
+  ctx.restore();
 }
 
 function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame): void {

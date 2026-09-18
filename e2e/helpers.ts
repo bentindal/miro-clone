@@ -13,12 +13,21 @@ export interface BoardCtx {
   height: number;
 }
 
-/** Open the app and return the canvas geometry. */
-export async function openBoard(page: Page): Promise<BoardCtx> {
-  await page.goto('/');
+/**
+ * Open a board and return the canvas geometry. With no URL a fresh board is
+ * created on the sync server; pass a share link to join an existing one.
+ */
+export async function openBoard(page: Page, url = '/'): Promise<BoardCtx> {
+  await page.goto(url);
   const canvas = page.getByTestId('canvas');
   await expect(canvas).toBeVisible();
   await page.waitForFunction(() => Boolean((window as unknown as { __wb?: unknown }).__wb));
+  // Wait for the first sync so the scene reflects the server's copy.
+  await page.waitForFunction(() => {
+    const wb = (window as unknown as { __wb: { sync: () => { synced: boolean } | null } }).__wb;
+    const s = wb.sync();
+    return s === null || s.synced;
+  });
   const box = await canvas.boundingBox();
   if (!box) throw new Error('canvas has no bounding box');
   return { page, origin: { x: box.x, y: box.y }, width: box.width, height: box.height };
@@ -195,4 +204,21 @@ export async function shapeById(page: Page, id: string): Promise<ShapeRecord> {
   const s = (await shapes(page)).find((x) => x.id === id);
   if (!s) throw new Error(`shape ${id} not found`);
   return s;
+}
+
+export interface SyncInfo {
+  status: string;
+  synced: boolean;
+  role: 'edit' | 'view';
+  boardId: string;
+  editLink: string | null;
+  viewLink: string | null;
+}
+
+export async function syncInfo(page: Page): Promise<SyncInfo | null> {
+  return page.evaluate(() => (window as unknown as { __wb: { sync: () => SyncInfo | null } }).__wb.sync());
+}
+
+export async function peers(page: Page): Promise<{ clientId: number; name: string; color: string; cursor: Pt | null; selection: string[] }[]> {
+  return page.evaluate(() => (window as unknown as { __wb: { peers: () => { clientId: number; name: string; color: string; cursor: Pt | null; selection: string[] }[] } }).__wb.peers());
 }

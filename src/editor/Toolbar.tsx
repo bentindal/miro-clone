@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { type Editor, type Tool, TOOLS } from './Editor';
 import { useEditorVersion } from './useEditor';
 import { downloadBlob } from './download';
+import { type SyncSession, saveUser } from '../sync/session';
 
 const TOOL_LABELS: Record<Tool, { label: string; key: string }> = {
   select: { label: 'Select', key: 'V' },
@@ -15,10 +17,17 @@ const TOOL_LABELS: Record<Tool, { label: string; key: string }> = {
   frame: { label: 'Frame', key: 'F' },
 };
 
-export function Toolbar({ editor }: { editor: Editor }) {
+interface ToolbarProps {
+  editor: Editor;
+  session: SyncSession | null;
+  mode: 'loading' | 'local' | 'online';
+}
+
+export function Toolbar({ editor, session, mode }: ToolbarProps) {
   useEditorVersion(editor);
   const hasSelection = editor.selection.length > 0;
   const selectedGroup = editor.selection.some((id) => editor.scene.get(id)?.type === 'group');
+  const readOnly = editor.readOnly;
 
   const exportPNG = () => {
     const canvas = editor.exportPNGCanvas(2);
@@ -49,6 +58,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Tools" onMouseDown={noFocus}>
+      <BoardHeader editor={editor} session={session} mode={mode} />
       <div className="toolbar-group">
         {TOOLS.map((tool) => (
           <button
@@ -59,6 +69,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
             title={`${TOOL_LABELS[tool].label} (${TOOL_LABELS[tool].key})`}
             aria-keyshortcuts={TOOL_LABELS[tool].key}
             aria-pressed={editor.tool === tool}
+            disabled={readOnly && tool !== 'select' && tool !== 'hand'}
             onClick={() => editor.setTool(tool)}
           >
             {TOOL_LABELS[tool].label}
@@ -66,31 +77,31 @@ export function Toolbar({ editor }: { editor: Editor }) {
         ))}
       </div>
       <div className="toolbar-group">
-        <button type="button" data-action="undo" disabled={!editor.history.canUndo} onClick={() => editor.undo()} title="Undo (Ctrl+Z)">
+        <button type="button" data-action="undo" disabled={!editor.canUndo || readOnly} onClick={() => editor.undo()} title="Undo (Ctrl+Z)">
           Undo
         </button>
-        <button type="button" data-action="redo" disabled={!editor.history.canRedo} onClick={() => editor.redo()} title="Redo (Ctrl+Shift+Z)">
+        <button type="button" data-action="redo" disabled={!editor.canRedo || readOnly} onClick={() => editor.redo()} title="Redo (Ctrl+Shift+Z)">
           Redo
         </button>
-        <button type="button" data-action="delete" disabled={!hasSelection} onClick={() => editor.deleteSelection()} title="Delete">
+        <button type="button" data-action="delete" disabled={!hasSelection || readOnly} onClick={() => editor.deleteSelection()} title="Delete">
           Delete
         </button>
-        <button type="button" data-action="group" disabled={editor.selection.length < 2} onClick={() => editor.groupSelection()} title="Group (Ctrl+G)">
+        <button type="button" data-action="group" disabled={editor.selection.length < 2 || readOnly} onClick={() => editor.groupSelection()} title="Group (Ctrl+G)">
           Group
         </button>
-        <button type="button" data-action="ungroup" disabled={!selectedGroup} onClick={() => editor.ungroupSelection()} title="Ungroup (Ctrl+Shift+G)">
+        <button type="button" data-action="ungroup" disabled={!selectedGroup || readOnly} onClick={() => editor.ungroupSelection()} title="Ungroup (Ctrl+Shift+G)">
           Ungroup
         </button>
-        <button type="button" data-action="bring-forward" disabled={!hasSelection} onClick={() => editor.bringForward()} title="Bring forward (])">
+        <button type="button" data-action="bring-forward" disabled={!hasSelection || readOnly} onClick={() => editor.bringForward()} title="Bring forward (])">
           Forward
         </button>
-        <button type="button" data-action="send-backward" disabled={!hasSelection} onClick={() => editor.sendBackward()} title="Send backward ([)">
+        <button type="button" data-action="send-backward" disabled={!hasSelection || readOnly} onClick={() => editor.sendBackward()} title="Send backward ([)">
           Backward
         </button>
-        <button type="button" data-action="bring-to-front" disabled={!hasSelection} onClick={() => editor.bringToFront()} title="Bring to front (})">
+        <button type="button" data-action="bring-to-front" disabled={!hasSelection || readOnly} onClick={() => editor.bringToFront()} title="Bring to front (})">
           To front
         </button>
-        <button type="button" data-action="send-to-back" disabled={!hasSelection} onClick={() => editor.sendToBack()} title="Send to back ({)">
+        <button type="button" data-action="send-to-back" disabled={!hasSelection || readOnly} onClick={() => editor.sendToBack()} title="Send to back ({)">
           To back
         </button>
       </div>
@@ -125,12 +136,13 @@ export function Toolbar({ editor }: { editor: Editor }) {
         <button type="button" data-action="save-json" onClick={saveJSON} title="Save board">
           Save
         </button>
-        <label className="file-button" title="Load board">
+        <label className={`file-button${readOnly ? ' disabled' : ''}`} title="Load board">
           Load
           <input
             type="file"
             accept="application/json,.json"
             aria-label="Load board file"
+            disabled={readOnly}
             data-action="load-json"
             onChange={(e) => {
               loadJSON(e.target.files?.[0]);
@@ -141,4 +153,121 @@ export function Toolbar({ editor }: { editor: Editor }) {
       </div>
     </div>
   );
+}
+
+function BoardHeader({ editor, session, mode }: ToolbarProps) {
+  const [, force] = useState(0);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    if (!session) return;
+    return session.subscribe(() => force((n) => n + 1));
+  }, [session]);
+
+  const status = mode === 'local' ? 'local' : session ? session.status : 'connecting';
+  const statusLabel: Record<string, string> = { local: 'Local only', connecting: 'Connecting…', connected: 'Live', offline: 'Reconnecting…' };
+  const copy = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard may be unavailable; the field is selectable anyway.
+    }
+    setCopied(key);
+    window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  };
+
+  return (
+    <div className="toolbar-group board-header">
+      <input
+        className="board-title"
+        data-testid="board-title"
+        aria-label="Board title"
+        placeholder="Untitled board"
+        value={editor.title}
+        readOnly={editor.readOnly}
+        onChange={(e) => editor.setTitle(e.target.value)}
+        onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      <span className={`sync-status ${status}`} data-testid="sync-status" data-status={status} title={statusLabel[status]}>
+        {statusLabel[status]}
+      </span>
+      {editor.readOnly && (
+        <span className="badge" data-testid="read-only-badge">
+          View only
+        </span>
+      )}
+      {session && (
+        <>
+          <div className="peers" data-testid="peers" aria-label="People on this board">
+            <span className="peer self" style={{ background: session.user.color }} title={`${session.user.name} (you)`}>
+              {initials(session.user.name)}
+            </span>
+            {editor.peers.map((p) => (
+              <span key={p.clientId} className="peer" data-testid="peer" data-name={p.name} style={{ background: p.color }} title={p.name}>
+                {initials(p.name)}
+              </span>
+            ))}
+          </div>
+          <input
+            className="user-name"
+            data-testid="user-name"
+            aria-label="Your name"
+            value={session.user.name}
+            onChange={(e) => {
+              const user = { ...session.user, name: e.target.value };
+              session.setUser(user);
+              saveUser(user);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+            }}
+          />
+          <button type="button" data-action="share" aria-expanded={shareOpen} onClick={() => setShareOpen((o) => !o)} title="Share this board">
+            Share
+          </button>
+          {shareOpen && (
+            <div className="share-panel" data-testid="share-panel" onMouseDown={(e) => e.stopPropagation()}>
+              {session.info.editLink && (
+                <label>
+                  Anyone with this link can edit
+                  <span className="share-row">
+                    <input readOnly value={session.info.editLink} data-testid="share-edit-link" onFocus={(e) => e.target.select()} />
+                    <button type="button" onClick={() => copy('edit', session.info.editLink!)}>
+                      {copied === 'edit' ? 'Copied' : 'Copy'}
+                    </button>
+                  </span>
+                </label>
+              )}
+              {session.info.viewLink && (
+                <label>
+                  Anyone with this link can view
+                  <span className="share-row">
+                    <input readOnly value={session.info.viewLink} data-testid="share-view-link" onFocus={(e) => e.target.select()} />
+                    <button type="button" onClick={() => copy('view', session.info.viewLink!)}>
+                      {copied === 'view' ? 'Copied' : 'Copy'}
+                    </button>
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return parts
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('');
 }

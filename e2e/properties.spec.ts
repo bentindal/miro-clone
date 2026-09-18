@@ -120,7 +120,6 @@ test.describe('property editing', () => {
     const downloadPromise = page.waitForEvent('download');
     await page.locator('[data-action="save-json"]').click();
     const path = (await (await downloadPromise).path())!;
-    await page.reload();
     await openBoard(page);
     await page.locator('[data-action="load-json"]').setInputFiles(path);
     await expect.poll(() => shapeById(page, r.id)).toEqual(before);
