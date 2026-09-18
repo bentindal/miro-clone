@@ -1,0 +1,88 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f4f5f7;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #dadce0;
+  user-select: none;
+  z-index: 2;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.toolbar button,
+.toolbar .file-button {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 9px;
+  border: 1px solid #c8ccd2;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+}
+
+.toolbar button:hover:not(:disabled),
+.toolbar .file-button:hover {
+  background: #eef1f5;
+}
+
+.toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.toolbar button.active {
+  background: #2f6fed;
+  border-color: #2f6fed;
+  color: #fff;
+}
+
+.toolbar .zoom {
+  min-width: 48px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-button input {
+  display: none;
+}
+
+.board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.board canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.text-editor {
+  position: absolute;
+  border: 1px solid #2f6fed;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+}
