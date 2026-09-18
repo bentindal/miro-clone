@@ -18,6 +18,10 @@ export function installTestHooks(editor: Editor): void {
       const s = editor.scene.get(id);
       return s && s.type === 'connector' ? editor.scene.connectorPoints(s) : null;
     },
+    connectorPath: (id: string) => {
+      const s = editor.scene.get(id);
+      return s && s.type === 'connector' ? editor.scene.connectorGeometry(s).points : null;
+    },
     load: (data: unknown) => editor.loadBoardFile(data),
     renderNow: () => editor.renderNow(),
     stats: () => ({ ...editor.lastRenderStats, ms: editor.lastRenderMs }),

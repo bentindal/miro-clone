@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor, Modifiers } from './Editor';
+import { PropertyBar } from './PropertyBar';
 import { TextEditorOverlay } from './TextEditorOverlay';
 import { useEditorVersion } from './useEditor';
 
@@ -97,6 +98,7 @@ export function Board({ editor }: { editor: Editor }) {
         onContextMenu={(e) => e.preventDefault()}
       />
       <TextEditorOverlay editor={editor} />
+      <PropertyBar editor={editor} />
     </div>
   );
 }

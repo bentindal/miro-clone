@@ -186,3 +186,13 @@ export async function pinch(ctx: BoardCtx, at: Pt, deltaY: number): Promise<void
     cancelable: true,
   });
 }
+
+export async function connectorPath(page: Page, id: string): Promise<Pt[] | null> {
+  return page.evaluate((id) => (window as unknown as { __wb: { connectorPath: (id: string) => Pt[] | null } }).__wb.connectorPath(id), id);
+}
+
+export async function shapeById(page: Page, id: string): Promise<ShapeRecord> {
+  const s = (await shapes(page)).find((x) => x.id === id);
+  if (!s) throw new Error(`shape ${id} not found`);
+  return s;
+}

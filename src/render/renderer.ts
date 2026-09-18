@@ -35,8 +35,8 @@ export interface Overlay {
   marquee: Box | null;
   /** Shape being drawn but not yet committed. */
   preview: Shape | null;
-  /** Preview connector line while dragging. */
-  previewLine: { a: Vec; b: Vec } | null;
+  /** Shape whose side anchors are shown while dragging a connector. */
+  anchorTargetId: Id | null;
   editingId: Id | null;
 }
 
@@ -175,17 +175,18 @@ export function renderBoard(
 
   // Screen-space overlays.
   ctx.save();
-  if (overlay.previewLine) {
-    const a = worldToScreen(cam, overlay.previewLine.a);
-    const b = worldToScreen(cam, overlay.previewLine.b);
+  if (overlay.anchorTargetId && scene.has(overlay.anchorTargetId)) {
+    const target = scene.mustGet(overlay.anchorTargetId);
+    ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = SELECTION_COLOR;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.lineWidth = 1.5;
+    for (const anchor of ['top', 'right', 'bottom', 'left'] as const) {
+      const p = worldToScreen(cam, scene.anchorPoint(target, anchor).point);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
   if (overlay.hoverId && !overlay.selection.includes(overlay.hoverId) && scene.has(overlay.hoverId)) {
     drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, 'rgba(47,111,237,0.5)', 1);
@@ -282,8 +283,8 @@ class Batch {
       case 'rect':
       case 'ellipse':
         fill = s.fill;
-        stroke = s.stroke;
-        lineWidth = 2;
+        stroke = s.strokeWidth > 0 ? s.stroke : null;
+        lineWidth = s.strokeWidth;
         break;
       case 'sticky':
         fill = s.fill;
@@ -293,7 +294,7 @@ class Batch {
       case 'line':
         fill = null;
         stroke = s.stroke;
-        lineWidth = 2;
+        lineWidth = s.strokeWidth;
         break;
       case 'pen':
         fill = null;
@@ -383,16 +384,23 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
     case 'group':
       return;
     case 'connector': {
-      const { a, b } = scene.connectorPoints(s);
+      const g = scene.connectorGeometry(s);
+      const pts = g.points;
+      const a = pts[0];
+      const b = pts[pts.length - 1];
+      const beforeB = pts[pts.length - 2] ?? a;
       ctx.strokeStyle = s.stroke;
       ctx.fillStyle = s.stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = s.strokeWidth;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      if (g.curve) ctx.bezierCurveTo(g.curve.c1.x, g.curve.c1.y, g.curve.c2.x, g.curve.c2.y, b.x, b.y);
+      else for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
       ctx.stroke();
-      const ang = Math.atan2(b.y - a.y, b.x - a.x);
-      const size = 10;
+      const ang = Math.atan2(b.y - beforeB.y, b.x - beforeB.x);
+      const size = 8 + s.strokeWidth;
       ctx.beginPath();
       ctx.moveTo(b.x, b.y);
       ctx.lineTo(b.x - size * Math.cos(ang - 0.4), b.y - size * Math.sin(ang - 0.4));
@@ -425,24 +433,24 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
     case 'rect':
       ctx.fillStyle = s.fill;
       ctx.strokeStyle = s.stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = s.strokeWidth;
       ctx.beginPath();
       ctx.rect(s.x, s.y, s.w, s.h);
       ctx.fill();
-      ctx.stroke();
+      if (s.strokeWidth > 0) ctx.stroke();
       break;
     case 'ellipse':
       ctx.fillStyle = s.fill;
       ctx.strokeStyle = s.stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = s.strokeWidth;
       ctx.beginPath();
       ctx.ellipse(s.x + s.w / 2, s.y + s.h / 2, Math.max(s.w / 2, 0), Math.max(s.h / 2, 0), 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
+      if (s.strokeWidth > 0) ctx.stroke();
       break;
     case 'line':
       ctx.strokeStyle = s.stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = s.strokeWidth;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(s.x + s.points[0].x, s.y + s.points[0].y);

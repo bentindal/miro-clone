@@ -2,7 +2,14 @@ import type { Vec } from './geometry';
 
 export type Id = string;
 
-export type Anchor = 'top' | 'right' | 'bottom' | 'left' | 'center';
+/** Fixed side of a shape a connector end attaches to, or 'auto' for the nearest edge point. */
+export type Anchor = 'auto' | 'top' | 'right' | 'bottom' | 'left';
+
+export const ANCHORS: Anchor[] = ['auto', 'top', 'right', 'bottom', 'left'];
+
+export type ConnectorStyle = 'straight' | 'elbow' | 'curved';
+
+export const CONNECTOR_STYLES: ConnectorStyle[] = ['straight', 'elbow', 'curved'];
 
 interface ShapeBase {
   id: Id;
@@ -23,18 +30,21 @@ export interface RectShape extends Boxed {
   type: 'rect';
   fill: string;
   stroke: string;
+  strokeWidth: number;
 }
 
 export interface EllipseShape extends Boxed {
   type: 'ellipse';
   fill: string;
   stroke: string;
+  strokeWidth: number;
 }
 
 /** A straight line between the first and last of two local points. */
 export interface LineShape extends Boxed {
   type: 'line';
   stroke: string;
+  strokeWidth: number;
   /** Two points relative to (x, y). */
   points: [Vec, Vec];
 }
@@ -74,6 +84,8 @@ export interface ConnectorEnd {
   shapeId: Id | null;
   /** Absolute world position for free endpoints. */
   point: Vec;
+  /** Which side of the attached shape to leave from; ignored for free ends. */
+  anchor: Anchor;
 }
 
 export interface ConnectorShape extends ShapeBase {
@@ -81,6 +93,8 @@ export interface ConnectorShape extends ShapeBase {
   start: ConnectorEnd;
   end: ConnectorEnd;
   stroke: string;
+  strokeWidth: number;
+  style: ConnectorStyle;
 }
 
 export type Shape =
