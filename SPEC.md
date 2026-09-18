@@ -45,8 +45,12 @@ Single-user editing of a board in the browser. No networking yet.
       Proof: [`e2e/pen.spec.ts`](e2e/pen.spec.ts) › `freehand pen` ›
       `dragging draws a stroke that follows the pointer path`,
       `a stroke can be selected by clicking on it and deleted`.
-- [ ] Text. Click with the text tool to place a text object; double-click any
+- [x] Text. Click with the text tool to place a text object; double-click any
       text-bearing object to edit it in place.
+      Proof: [`e2e/text.spec.ts`](e2e/text.spec.ts) › `text editing` ›
+      `text tool places a text object and edits it in place`,
+      `committing an empty text object discards it`,
+      `clicking elsewhere commits the edit`.
 - [ ] Frames. Drag to create a titled frame; objects inside a frame move with it.
 ### Editing
 

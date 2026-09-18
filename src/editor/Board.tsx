@@ -91,6 +91,8 @@ export function Board({ editor }: { editor: Editor }) {
           setCursor(editor.cursorAt(local(e)));
         }}
         onPointerCancel={() => editor.cancelDrag()}
+        // Keep focus where it is (e.g. in the text editor) and avoid native text selection.
+        onMouseDown={(e) => e.preventDefault()}
         onDoubleClick={(e) => editor.onDoubleClick(local(e))}
         onContextMenu={(e) => e.preventDefault()}
       />
