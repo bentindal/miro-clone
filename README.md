@@ -10,7 +10,9 @@ Playwright test that proves it. What comes next is in [ROADMAP.md](ROADMAP.md).
 - TypeScript, React 19, Vite 7
 - Hand-written scene graph rendered to an HTML canvas (`src/model`, `src/render`)
 - Yjs for the shared document and per-user undo; y-websocket for transport
-- A small Node sync server (`server/`): WebSocket rooms, HTTP API, Postgres persistence
+- A sync server in two interchangeable flavours: a Cloudflare Worker with one
+  Durable Object per board (`worker/`, runs free) and a Node process with
+  Postgres (`server/`). Both wrap the same protocol core.
 - Vitest for unit tests, Playwright for end-to-end and performance tests
 
 ## How collaboration works
@@ -23,11 +25,13 @@ tracking only this client's transactions, so undo never reverts someone else's
 work. Presence (name, colour, cursor, selection) travels over the awareness
 protocol and never touches the document.
 
-The server (`server/src`) keeps one room per open board, relays updates,
-drops document writes from view-only links, and persists each update to
-Postgres, compacting to a single state blob when the room unloads. Boards are
-anonymous: an edit link and a view link, each with a secret token in the URL
-fragment, are the only credentials.
+A room (`server/src/protocol.ts`) relays updates between the sockets on a
+board, drops document writes from view-only links, and hands every update to
+a persistence hook. The Cloudflare Worker (`worker/`) gives each board its own
+Durable Object with a private SQLite database and hibernating WebSockets, so
+an idle board costs nothing. The Node server (`server/`) keeps rooms in memory
+and persists to Postgres. Boards are anonymous: an edit link and a view link,
+each with a secret token in the URL fragment, are the only credentials.
 
 ## Setup
 
@@ -39,42 +43,74 @@ git clone https://github.com/bentindal/miro-clone.git
 cd miro-clone
 pnpm install
 pnpm exec playwright install chromium   # browser for the e2e and perf tests
-pnpm dev:server                         # sync server on :8787 (PGlite in memory, no database needed)
+pnpm dev:server                         # Node sync server on :8787 (PGlite in memory, no database needed)
 pnpm dev                                # app on http://localhost:5173, proxies /api and /ws to :8787
 ```
+
+To develop against the Cloudflare flavour instead, run `pnpm dev:worker` (port
+8788, a real Workers runtime locally) and start the app with
+`SYNC_PROXY_TARGET=http://localhost:8788 pnpm dev`.
 
 Without the sync server the app still opens and works in a single tab
 ("Local only" in the header); nothing is saved.
 
-`pnpm e2e` starts the sync server and builds and serves the app on port 4173
-itself, so nothing else needs to be running. If a previous server is still
-holding port 8787 or 4173, stop it first or Playwright refuses to start.
+`pnpm e2e` starts both sync servers and builds and serves the app on ports
+4173 and 4174 itself, so nothing else needs to be running. It runs every test
+against the Node server and the collaboration suite again against the Worker.
+If a previous process is still holding one of ports 8787, 8788, 4173 or 4174,
+stop it first or Playwright refuses to start.
 
 ### Environment
 
 | Variable | Where | Meaning |
 | --- | --- | --- |
 | `VITE_SYNC_URL` | app build | Public base URL of the sync server. Unset = same origin via the dev/preview proxy. |
+| `CORS_ORIGIN` | worker (`wrangler.toml` vars) and server | Origin allowed to call the API from a browser. |
 | `PORT` | server | Listen port, default 8787. |
 | `DATABASE_URL` | server | Postgres connection string. Unset = PGlite in memory (tests, quick local runs). |
 | `PGLITE_DIR` | server | Keep PGlite data in this directory instead of memory. |
-| `CORS_ORIGIN` | server | Origin allowed to call the API from a browser. `*` in development. |
 
-### Deploying
+### Deploying for free
 
-- **App**: Vercel, from `main`. Set `VITE_SYNC_URL` to the server's public URL
-  in the project's environment variables and redeploy. `vercel.json` rewrites
-  board URLs to the single page.
-- **Server**: any host that runs a long-lived Node process with WebSockets.
-  `server/Dockerfile` and `server/fly.toml` cover Fly.io; the commands are at
-  the top of `fly.toml`. Attach a Postgres database (`DATABASE_URL`) and set
-  `CORS_ORIGIN` to the app's origin. The schema is created on start.
+The app on Vercel's Hobby plan and the sync server on Cloudflare's Workers
+Free plan cost nothing and need no credit card. Boards persist in Durable
+Object storage; idle boards hibernate.
+
+1. Sync server. Once, from the repository root:
+   ```
+   pnpm --filter whiteboard-worker exec wrangler login
+   pnpm deploy:worker
+   ```
+   The output ends with the Worker's URL, like
+   `https://whiteboard-sync.<account>.workers.dev`. Check
+   `<that url>/healthz` answers `{"ok":true}`. If the app's origin is not the
+   default in `worker/wrangler.toml`, change `CORS_ORIGIN` there first.
+2. App. In the Vercel project, Settings, Environment Variables, add
+   `VITE_SYNC_URL` = the Worker URL (Production, and Preview if wanted), then
+   redeploy the latest production deployment. It is a build-time variable.
+3. Open the site: the header shows "Live" instead of "Local only" and Share
+   offers the two links.
+
+Free plan limits that matter: 100,000 requests a day across the account
+(outgoing WebSocket messages are free; incoming ones count 20:1), and no
+overage billing, so beyond the cap the Worker errors until the next day
+instead of charging.
+
+### Deploying the Node flavour instead
+
+Any host that runs a long-lived Node process with WebSockets.
+`server/Dockerfile` and `server/fly.toml` cover Fly.io (paid: no free tier
+for new accounts); the commands are at the top of `fly.toml`. Attach a
+Postgres database (`DATABASE_URL`, Neon's free tier works) and set
+`CORS_ORIGIN` to the app's origin. The schema is created on start.
 
 ## Commands
 
 ```
 pnpm dev          # start the app on http://localhost:5173
-pnpm dev:server   # start the sync server on :8787 with reload
+pnpm dev:server   # start the Node sync server on :8787 with reload
+pnpm dev:worker   # start the Cloudflare Worker locally on :8788
+pnpm deploy:worker # deploy the Worker (after wrangler login)
 pnpm build        # typecheck and bundle the app to dist/
 pnpm build:server # compile the server to server/dist/
 pnpm test         # unit tests, app and server (Vitest)
@@ -90,7 +126,8 @@ src/model     scene graph, geometry, hit testing, snapping, serialisation
 src/render    canvas renderer (culling, batched low-zoom drawing, selection frame, peers)
 src/editor    editor state machine (tools, drags, clipboard, keyboard), React UI
 src/sync      Yjs binding, board API client, sync session with presence
-server/src    sync server: store (Postgres/PGlite), rooms, HTTP + WebSocket app
+server/src    protocol core (shared), Node sync server: store (Postgres/PGlite), rooms, HTTP + WebSocket app
+worker/src    Cloudflare Worker + BoardRoom Durable Object (SQLite storage, hibernating WebSockets)
 e2e           Playwright specs, one file per SPEC.md item
 ```
 

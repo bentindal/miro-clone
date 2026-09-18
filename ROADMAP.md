@@ -14,7 +14,9 @@ announced canvas with keyboard object navigation.
 
 Phase 2 (first cut) is in: boards live on a sync server, several people edit
 one at once with live cursors and selections, undo is per user, and boards are
-shared by anonymous edit or view links.
+shared by anonymous edit or view links. The server runs for free on Cloudflare
+Workers with one Durable Object per board; a Node/Postgres flavour exists for
+self-hosting.
 
 What is still thin:
 

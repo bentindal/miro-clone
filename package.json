@@ -12,7 +12,10 @@
     "perf": "playwright test e2e/perf.spec.ts",
     "lint": "eslint .",
     "dev:server": "pnpm --filter whiteboard-server dev",
-    "build:server": "pnpm --filter whiteboard-server build"
+    "build:server": "pnpm --filter whiteboard-server build",
+    "dev:worker": "pnpm --filter whiteboard-worker dev",
+    "deploy:worker": "pnpm --filter whiteboard-worker deploy",
+    "typecheck:worker": "pnpm --filter whiteboard-worker typecheck"
   },
   "dependencies": {
     "react": "^19.1.0",
