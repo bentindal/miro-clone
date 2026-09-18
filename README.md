@@ -2,7 +2,7 @@
 
 An infinite collaborative whiteboard. Phase 1 (single-user canvas core) is
 specified and tracked in [SPEC.md](SPEC.md); every ticked item links to the
-Playwright test that proves it.
+Playwright test that proves it. What comes next is in [ROADMAP.md](ROADMAP.md).
 
 ## Stack
 
