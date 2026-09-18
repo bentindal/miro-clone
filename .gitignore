@@ -5,3 +5,5 @@ playwright-report
 blob-report
 *.local
 *.tsbuildinfo
+dist-worker
+.wrangler

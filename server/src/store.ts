@@ -1,11 +1,12 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { type Role, safeEqual } from './protocol.js';
+
+export type { Role };
 
 /** The subset of a pg client (or PGlite) the store needs. */
 export interface Queryable {
   query<R = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: R[] }>;
 }
-
-export type Role = 'edit' | 'view';
 
 export interface BoardRecord {
   id: string;
@@ -115,11 +116,4 @@ function toBytes(v: Uint8Array | Buffer | ArrayBuffer): Uint8Array {
 
 function token(): string {
   return randomBytes(18).toString('base64url');
-}
-
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }

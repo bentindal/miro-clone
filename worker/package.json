@@ -1,0 +1,21 @@
+{
+  "name": "whiteboard-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "lib0": "^0.2.109",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "~5.8.3",
+    "wrangler": "^4.0.0"
+  }
+}

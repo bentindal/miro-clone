@@ -161,6 +161,10 @@ today". Same rule as phase 1: a tick needs a passing end-to-end test.
 
 Boards live on a sync server and several people edit one at the same time.
 No accounts yet: a board's edit link and view link are its only credentials.
+Two server flavours share one protocol core: a Cloudflare Worker with a
+Durable Object per board (free to run) and a Node process with Postgres. The
+`e2e/collab.spec.ts` suite runs against both (Playwright projects `chromium`
+and `chromium-worker`), so every proof below holds for each.
 
 - [x] Boards and share links. Visiting the root creates a board and opens its
       edit link; the share panel offers an edit link and a distinct view link;
@@ -180,7 +184,8 @@ No accounts yet: a board's edit link and view link are its only credentials.
       Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
       `presence: names, cursors and selections of others are visible`.
 - [x] Server-side persistence. A board keeps its content after everyone leaves
-      and after a reload; the server compacts the update log.
+      and after a reload; the server compacts the update log. On Cloudflare the
+      log lives in the board's own SQLite database.
       Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `real-time collaboration` ›
       `the board survives everyone leaving: a later visitor gets the saved content`;
       [`server/src/app.test.ts`](server/src/app.test.ts) › `sync rooms` ›
@@ -192,6 +197,9 @@ No accounts yet: a board's edit link and view link are its only credentials.
       `a viewer sees live changes but cannot make any, and the server refuses their writes`;
       [`server/src/app.test.ts`](server/src/app.test.ts) › `sync rooms` ›
       `drops document updates from view-only links but still shares their presence`.
+- [x] Runs for free. The Worker flavour fits Cloudflare's free plan with no
+      card; proven by the same collaboration suite on wrangler's local Workers
+      runtime (project `chromium-worker`).
 - [ ] Accounts and a board list.
 - [ ] Comments anchored to objects.
 
