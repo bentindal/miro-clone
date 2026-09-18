@@ -68,7 +68,12 @@ Single-user editing of a board in the browser. No networking yet.
       Proof: [`e2e/group.spec.ts`](e2e/group.spec.ts) › `group and ungroup` ›
       `grouped objects select and move as one, ungroup restores them`,
       `groups nest and the toolbar buttons work too`.
-- [ ] Resize and rotate handles on the selection.
+- [x] Resize and rotate handles on the selection.
+      Proof: [`e2e/handles.spec.ts`](e2e/handles.spec.ts) › `resize and rotate handles` ›
+      `dragging a corner handle resizes, an edge handle resizes one axis`,
+      `dragging past the opposite edge flips instead of collapsing`,
+      `dragging the rotate handle rotates around the centre`,
+      `a multi-selection scales all members together`.
 - [ ] Copy and paste, including groups and connectors between copied shapes.
 - [ ] Z-order: bring forward, send backward, bring to front, send to back.
 - [ ] Undo and redo across every editing operation above.
