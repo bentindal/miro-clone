@@ -100,7 +100,10 @@ Single-user editing of a board in the browser. No networking yet.
 
 ### Performance
 
-- [ ] A board of 5,000 objects pans and zooms with a p95 frame time under 16ms.
+- [x] A board of 5,000 objects pans and zooms with a p95 frame time under 16ms.
+      Proof: [`e2e/perf.spec.ts`](e2e/perf.spec.ts) ›
+      `board with 5,000 objects pans and zooms under 16ms p95`.
+
 ## Unit coverage
 
 The model underneath is covered by Vitest (`pnpm test`):
