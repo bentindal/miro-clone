@@ -50,7 +50,16 @@ export function Board({ editor }: { editor: Editor }) {
 
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) return;
+      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'SELECT')) return;
+      if (e.key === 'Tab' && target === canvas) {
+        // Cycle through objects; at either end let focus leave the canvas normally.
+        if (editor.selectNext(e.shiftKey ? -1 : 1)) e.preventDefault();
+        return;
+      }
+      if (e.key === 'Enter' && target === canvas) {
+        if (editor.activateSelection()) e.preventDefault();
+        return;
+      }
       if (e.key === ' ') {
         editor.setSpaceHeld(true);
         e.preventDefault();
@@ -112,15 +121,25 @@ export function Board({ editor }: { editor: Editor }) {
     return consumed;
   };
 
+  const status = editor.describeSelection();
+
   return (
     <div ref={hostRef} className="board" data-testid="board" style={{ cursor }}>
       <canvas
         ref={canvasRef}
         data-testid="canvas"
+        role="application"
+        aria-label="Whiteboard canvas"
+        aria-describedby="board-help"
+        aria-roledescription="whiteboard"
+        tabIndex={0}
         onPointerDown={(e) => {
-          (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+          const canvas = e.currentTarget as HTMLCanvasElement;
+          canvas.setPointerCapture(e.pointerId);
           if (touchDown(e)) return;
           editor.onPointerDown(local(e), e.button, mods(e));
+          // Mousedown's default is prevented below, so take focus explicitly for keyboard use.
+          if (!editor.editing) canvas.focus({ preventScroll: true });
         }}
         onPointerMove={(e) => {
           if (touchMove(e)) return;
@@ -144,6 +163,12 @@ export function Board({ editor }: { editor: Editor }) {
       />
       <TextEditorOverlay editor={editor} />
       <PropertyBar editor={editor} />
+      <p id="board-help" className="sr-only">
+        Tab and Shift+Tab move between objects, Enter edits the selected text, arrow keys nudge, Delete removes, Escape clears the selection. Letter keys pick tools.
+      </p>
+      <div role="status" aria-live="polite" className="sr-only" data-testid="a11y-status">
+        {status}
+      </div>
     </div>
   );
 }

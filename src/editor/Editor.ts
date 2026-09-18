@@ -352,6 +352,52 @@ export class Editor {
     this.notify();
   }
 
+  /** Top-level selectable ids in z-order (groups collapse to one entry). */
+  selectables(): Id[] {
+    return this.scene.normalizeSelection(this.scene.all().filter((s) => s.type !== 'group').map((s) => s.id));
+  }
+
+  /**
+   * Move the selection to the next (or previous) object in z-order.
+   * Returns false when the cycle would wrap, so the caller can let keyboard
+   * focus leave the canvas instead.
+   */
+  selectNext(direction: 1 | -1): boolean {
+    const items = this.selectables();
+    if (items.length === 0) return false;
+    const current = this.selection.length === 1 ? items.indexOf(this.selection[0]) : -1;
+    let next: number;
+    if (current === -1) next = direction === 1 ? 0 : items.length - 1;
+    else {
+      next = current + direction;
+      if (next < 0 || next >= items.length) return false;
+    }
+    this.select([items[next]]);
+    return true;
+  }
+
+  /** Open the text editor for a single selected text-bearing object or frame. Returns true if it did. */
+  activateSelection(): boolean {
+    if (this.selection.length !== 1) return false;
+    const s = this.scene.get(this.selection[0]);
+    if (!s || !(hasText(s) || s.type === 'frame')) return false;
+    this.startEditing(s.id, false);
+    return true;
+  }
+
+  /** Short human description of the current selection for assistive technology. */
+  describeSelection(): string {
+    if (this.editing) return 'Editing text';
+    const items = this.selectables();
+    if (this.selection.length === 0) return items.length === 0 ? 'Empty board' : `Nothing selected, ${items.length} objects`;
+    if (this.selection.length > 1) return `${this.selection.length} objects selected`;
+    const id = this.selection[0];
+    const s = this.scene.get(id);
+    if (!s) return 'Nothing selected';
+    const index = items.indexOf(id) + 1;
+    return `Selected ${describeShape(s)}, ${index} of ${items.length}`;
+  }
+
   get selectionFrame(): SelectionFrame | null {
     return selectionFrame(this.scene, this.selection, this.camera);
   }
@@ -1200,6 +1246,28 @@ function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K
   const out = {} as Pick<T, K>;
   for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
   return out;
+}
+
+const TYPE_LABELS: Record<Shape['type'], string> = {
+  rect: 'rectangle',
+  ellipse: 'ellipse',
+  line: 'line',
+  pen: 'pen stroke',
+  sticky: 'sticky note',
+  text: 'text',
+  frame: 'frame',
+  group: 'group',
+  connector: 'connector',
+};
+
+function describeShape(s: Shape): string {
+  const label = TYPE_LABELS[s.type];
+  if (s.type === 'sticky' || s.type === 'text') {
+    const text = s.text.trim().replace(/\s+/g, ' ');
+    return text ? `${label} "${text.length > 40 ? `${text.slice(0, 40)}…` : text}"` : `empty ${label}`;
+  }
+  if (s.type === 'frame') return `frame "${s.title}"`;
+  return label;
 }
 
 function midpoint(a: Vec, b: Vec): Vec {

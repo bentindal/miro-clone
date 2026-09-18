@@ -74,6 +74,23 @@
   display: block;
   width: 100%;
   height: 100%;
+  outline: none;
+}
+
+.board canvas:focus-visible {
+  box-shadow: inset 0 0 0 3px #2f6fed;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .text-editor {

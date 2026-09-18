@@ -145,9 +145,15 @@ today". Same rule as phase 1: a tick needs a passing end-to-end test.
       `spreading two fingers zooms in around their midpoint; pinching zooms out`,
       `a single finger draws and drags like the mouse`,
       `a second finger landing mid-drag cancels the drag and turns it into a pan`.
-- [ ] Accessibility. The canvas is focusable, objects can be cycled and
-      activated from the keyboard, and selection changes are announced to
-      assistive technology.
+- [x] Accessibility. The canvas is a labelled, focusable application region;
+      Tab and Shift+Tab cycle objects (leaving the canvas at either end), Enter
+      edits the selected text, selection changes are announced through a live
+      region, and every control has an accessible name.
+      Proof: [`e2e/accessibility.spec.ts`](e2e/accessibility.spec.ts) › `accessibility` ›
+      `the canvas is a labelled, focusable application region`,
+      `Tab and Shift+Tab cycle the selection through objects and announce them`,
+      `Enter edits the selected note from the keyboard and the edit is announced`,
+      `every control has an accessible name and the tool buttons expose their shortcuts`.
 
 ## Unit coverage
 

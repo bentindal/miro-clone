@@ -6,24 +6,23 @@ yet, ordered by what blocks real use rather than by what is visible. Phase 1
 
 ## Where it stands today
 
-Phase 1 is tested, but several items are thin versions of what a mature
-product ships:
+Phase 1 is tested. Phase 1b (tracked in [SPEC.md](SPEC.md)) closed the first
+round of editing-quality gaps: a property bar for fill, stroke, width and text
+size; elbow and curved connectors with side anchors; snapping with guides,
+grid snap, align and distribute; two-finger touch pan and pinch; a focusable,
+announced canvas with keyboard object navigation.
 
-- **No property editing.** A shape's fill, stroke, font size and sticky colour
-  cannot be changed after creation. A floating context toolbar is the single
-  most used piece of whiteboard UI and there is nothing like it yet.
-- **Connectors are straight lines only.** No elbow or curved routing, no
-  labels, no arrowhead choice, no fixed anchor points. Endpoints re-route
-  through the shape centre, which looks wrong when shapes sit side by side at
-  an angle.
-- **No snapping or alignment guides.** Everything is placed freehand, so boards
-  get untidy fast.
-- **No touch input.** Pinch only works through trackpad wheel events; two-finger
-  pan and pinch on tablets do nothing.
+What is still thin:
+
 - **Persistence is a JSON download.** Close the tab and the board is gone. Undo
   history lives in memory only.
-- **Zero accessibility.** A canvas with no ARIA, no keyboard object navigation
-  and no screen reader support.
+- **Connector labels and connector-to-connector bends** are missing; routing
+  is a single mid-point elbow with no obstacle avoidance.
+- **Resize does not snap**; only moves do. No smart spacing guides between
+  three or more objects.
+- **Text is plain.** No bold, lists or links; sticky notes do not auto-fit.
+- **Accessibility is a first pass.** Objects are announced and reachable, but
+  there is no keyboard resize or rotate, and no high-contrast theme.
 
 ## Phase 2: make it a product (persist, share, collaborate)
 
@@ -43,18 +42,21 @@ This is the real gap. Without it nothing else matters.
 
 ## Phase 3: editing quality
 
-Closes the gap that makes the editor feel unfinished.
+Closes the remaining gap that makes the editor feel unfinished. Items marked
+done shipped in phase 1b.
 
 1. Floating property toolbar: colours, stroke, font, alignment, sticky colour,
-   connector style.
-2. Connector routing: elbow and curved paths, snap to anchor points, labels,
-   arrowhead options, connector-to-connector bends.
-3. Snapping and smart guides, align and distribute commands, grid snap toggle.
+   connector style. (done)
+2. Connector routing: elbow and curved paths, snap to anchor points (done);
+   labels, arrowhead options, connector-to-connector bends, obstacle avoidance.
+3. Snapping and smart guides, align and distribute commands, grid snap toggle
+   (done for moves); resize snapping and equal-spacing guides.
 4. Sticky notes that auto-fit their text, tags on stickies, voting dots.
 5. Rich text: bold, lists, links, in-place font sizing.
-6. Touch and pen input: two-finger pan and pinch, palm rejection, pressure
-   width for the pen tool.
-7. Minimap, zoom to selection, keyboard object navigation for accessibility.
+6. Touch and pen input: two-finger pan and pinch (done); palm rejection,
+   pressure width for the pen tool.
+7. Minimap, zoom to selection; keyboard object navigation (done), keyboard
+   resize and rotate.
 8. Image and file upload with drag-and-drop and paste from the clipboard.
 
 ## Phase 4: content types and structure
