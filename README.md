@@ -10,10 +10,26 @@ Playwright test that proves it.
 - Hand-written scene graph rendered to an HTML canvas (`src/model`, `src/render`)
 - Vitest for unit tests, Playwright for end-to-end and performance tests
 
+## Setup
+
+Prerequisites: Node.js 22 or newer and pnpm 10. If you use corepack,
+`corepack enable` installs the pnpm version pinned in `package.json`.
+
+```
+git clone https://github.com/bentindal/miro-clone.git
+cd miro-clone
+pnpm install
+pnpm exec playwright install chromium   # browser for the e2e and perf tests
+pnpm dev                                # http://localhost:5173
+```
+
+`pnpm e2e` builds the app and serves `dist/` on port 4173 itself, so nothing
+else needs to be running. If a previous server is still holding that port, stop
+it first or Playwright refuses to start.
+
 ## Commands
 
 ```
-pnpm install
 pnpm dev        # start the app on http://localhost:5173
 pnpm build      # typecheck and bundle to dist/
 pnpm test       # unit tests (Vitest)
