@@ -17,7 +17,7 @@ const BAR_HEIGHT = 44;
  */
 export function PropertyBar({ editor }: { editor: Editor }) {
   useEditorVersion(editor);
-  if (editor.tool !== 'select' || editor.selection.length === 0 || editor.isDragging || editor.editing) return null;
+  if (editor.readOnly || editor.tool !== 'select' || editor.selection.length === 0 || editor.isDragging || editor.editing) return null;
   const frame = editor.selectionFrame;
   if (!frame) return null;
 

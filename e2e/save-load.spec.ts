@@ -30,8 +30,7 @@ test.describe('save and load board JSON', () => {
     expect(file.version).toBe(1);
     expect(file.shapes).toEqual(saved);
 
-    // Fresh page, then load the file back.
-    await page.reload();
+    // A brand new board, then load the file into it.
     await openBoard(page);
     expect(await shapes(page)).toEqual([]);
     await page.locator('[data-action="load-json"]').setInputFiles(path);

@@ -35,6 +35,12 @@ export class Scene {
   private order: Id[] = [];
   /** Cached result of `all()`; cleared by every mutation. */
   private allCache: Shape[] | null = null;
+  /** Incremented by every mutation; lets observers skip unchanged scenes cheaply. */
+  private mutationCount = 0;
+
+  get version(): number {
+    return this.mutationCount;
+  }
 
   // ---- basic CRUD --------------------------------------------------------
 
@@ -70,6 +76,42 @@ export class Scene {
 
   private touch(): void {
     this.allCache = null;
+    this.mutationCount++;
+  }
+
+  // ---- raw access for synchronisation --------------------------------------
+
+  /** Insert or replace a shape record without any cascade. Unknown ids are appended to the order. */
+  put(shape: Shape): void {
+    this.touch();
+    if (!this.shapes.has(shape.id)) this.order.push(shape.id);
+    this.shapes.set(shape.id, shape);
+  }
+
+  /** Remove shapes without touching descendants or connectors. */
+  deleteRaw(ids: Iterable<Id>): void {
+    const set = new Set(ids);
+    if (set.size === 0) return;
+    this.touch();
+    for (const id of set) this.shapes.delete(id);
+    this.order = this.order.filter((id) => !set.has(id));
+  }
+
+  /**
+   * Replace the z-order. Ids not in the scene are dropped, duplicates removed,
+   * and shapes missing from `ids` are appended so every shape keeps a place.
+   */
+  setOrder(ids: readonly Id[]): void {
+    this.touch();
+    const seen = new Set<Id>();
+    const next: Id[] = [];
+    for (const id of ids) {
+      if (!this.shapes.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+    for (const id of this.order) if (!seen.has(id)) next.push(id);
+    this.order = next;
   }
 
   ids(): Id[] {

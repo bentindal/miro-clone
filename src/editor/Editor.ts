@@ -17,8 +17,8 @@ import {
   zoomCameraAt,
   zoomCameraBy,
 } from '../model/geometry';
+import * as Y from 'yjs';
 import { hitTest, selectableAt, selectablesInBox } from '../model/hitTest';
-import { History } from '../model/history';
 import { Scene, type SceneSnapshot } from '../model/scene';
 import { type BoardFile, deserializeScene, serializeScene } from '../model/serialize';
 import {
@@ -48,6 +48,16 @@ import {
 } from '../render/renderer';
 import { type AlignKind, type Guide, alignDeltas, computeSnap, distributeDeltas } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
+import { DocBinding } from '../sync/binding';
+
+/** A collaborator's presence as shown on the canvas. */
+export interface Peer {
+  clientId: number;
+  name: string;
+  color: string;
+  cursor: Vec | null;
+  selection: Id[];
+}
 
 export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame';
 
@@ -73,7 +83,6 @@ type Drag =
 
 export interface EditingState {
   id: Id;
-  snap: SceneSnapshot;
   /** Whether the shape was created by this edit (removed again if left empty). */
   fresh: boolean;
 }
@@ -91,7 +100,18 @@ const SHAPE_STROKE = '#222222';
 
 export class Editor {
   readonly scene = new Scene();
-  readonly history = new History<SceneSnapshot>(500);
+  /** Shared document; the scene is a view over it. */
+  readonly doc: Y.Doc;
+  /** Origin tag for this editor's own transactions. */
+  readonly origin = { editor: true };
+  readonly binding: DocBinding;
+  readonly undoManager: Y.UndoManager;
+  /** Viewers can look and point but not change anything. The server enforces this too. */
+  readOnly = false;
+  /** Other people on this board, for rendering cursors and selections. */
+  peers: Peer[] = [];
+  /** Last known pointer position in world coordinates, for presence. */
+  pointerWorld: Vec | null = null;
   camera: Camera = { tx: 0, ty: 0, zoom: 1 };
   selection: Id[] = [];
   tool: Tool = 'select';
@@ -111,11 +131,67 @@ export class Editor {
   private drag: Drag | null = null;
   private pinch: { center: Vec; span: number } | null = null;
   private txSnap: SceneSnapshot | null = null;
+  /** Undo stack depth when the current pointer step began, to drop steps that changed nothing. */
+  private txUndoDepth = 0;
   private listeners = new Set<() => void>();
+  /** Called on every pointer move, without a full change notification. */
+  private pointerListeners = new Set<() => void>();
   private version = 0;
   private canvas: HTMLCanvasElement | null = null;
   private renderHandle: number | null = null;
   private stickyColorIndex = 0;
+
+  constructor(doc = new Y.Doc()) {
+    this.doc = doc;
+    this.binding = new DocBinding(doc, this.scene, this.origin, () => this.afterChange());
+    this.undoManager = new Y.UndoManager([this.binding.shapes, this.binding.order, this.binding.meta], {
+      trackedOrigins: new Set([this.origin]),
+      // Consecutive writes merge into one undo step until `stopCapturing` marks a boundary.
+      captureTimeout: Number.MAX_SAFE_INTEGER,
+    });
+    this.undoManager.on('stack-item-popped', () => this.notify());
+  }
+
+  /** Populate from a synced document (or seed the document from this scene). */
+  adoptDocument(): void {
+    this.binding.adoptDocument();
+    this.undoManager.clear();
+    this.notify();
+  }
+
+  get canUndo(): boolean {
+    return this.undoManager.undoStack.length > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.undoManager.redoStack.length > 0;
+  }
+
+  get title(): string {
+    return this.binding.title;
+  }
+
+  setTitle(title: string): void {
+    if (this.readOnly) return;
+    this.undoManager.stopCapturing();
+    this.binding.setTitle(title);
+    this.notify();
+  }
+
+  setReadOnly(readOnly: boolean): void {
+    this.readOnly = readOnly;
+    if (readOnly) {
+      this.cancelDrag();
+      if (this.editing) this.finishEditing();
+      if (this.tool !== 'select' && this.tool !== 'hand') this.tool = 'select';
+    }
+    this.notify();
+  }
+
+  setPeers(peers: Peer[]): void {
+    this.peers = peers;
+    this.notify();
+  }
 
   // ---- subscriptions -----------------------------------------------------
 
@@ -128,12 +204,19 @@ export class Editor {
     return this.version;
   }
 
+  /** Subscribe to pointer movement (for presence); cheaper than `subscribe`. */
+  onPointer(fn: () => void): () => void {
+    this.pointerListeners.add(fn);
+    return () => this.pointerListeners.delete(fn);
+  }
+
   /** True while a pointer drag (move, resize, draw, marquee, pan) is in progress. */
   get isDragging(): boolean {
     return this.drag !== null;
   }
 
   private notify(): void {
+    this.binding.pushLocal();
     this.version++;
     for (const fn of this.listeners) fn();
     this.requestRender();
@@ -202,30 +285,42 @@ export class Editor {
               : null,
       anchorTargetId: d?.kind === 'connector' ? (d.endId ?? (dist(d.start, d.current) * this.camera.zoom < DRAG_THRESHOLD ? d.startId : null)) : null,
       guides: this.guides,
+      peers: this.peers,
       editingId: this.editing?.id ?? null,
     };
   }
 
   // ---- history -----------------------------------------------------------
 
-  /** Run `fn` as one undoable step. */
-  transact<T>(fn: () => T): T {
-    const before = this.scene.snapshot();
+  /** Run `fn` as one undoable step. Does nothing in read-only mode. */
+  transact<T>(fn: () => T): T | undefined {
+    if (this.readOnly) return undefined;
+    this.undoManager.stopCapturing();
     const result = fn();
-    if (sceneChanged(before, this.scene.snapshot())) this.history.push(before);
     this.afterChange();
     return result;
   }
 
+  /** Start a pointer-driven step; returns the scene as it was for incremental re-application. */
   private beginTx(): SceneSnapshot {
+    this.undoManager.stopCapturing();
     this.txSnap = this.scene.snapshot();
+    this.txUndoDepth = this.undoManager.undoStack.length;
     return this.txSnap;
   }
 
   private endTx(): void {
-    if (this.txSnap && sceneChanged(this.txSnap, this.scene.snapshot())) this.history.push(this.txSnap);
+    const snap = this.txSnap;
     this.txSnap = null;
+    this.binding.pushLocal();
+    // A drag that ends where it started (or was cancelled) must not leave an empty undo step.
+    if (snap && !sceneChanged(snap, this.scene.snapshot())) this.dropStepsSince(this.txUndoDepth);
     this.afterChange();
+  }
+
+  private dropStepsSince(depth: number): void {
+    const stack = this.undoManager.undoStack;
+    if (stack.length > depth) stack.splice(depth);
   }
 
   private afterChange(): void {
@@ -235,19 +330,19 @@ export class Editor {
   }
 
   undo(): boolean {
+    if (this.readOnly) return false;
     if (this.editing) this.finishEditing();
-    const prev = this.history.undo(this.scene.snapshot());
-    if (!prev) return false;
-    this.scene.restore(prev);
+    if (!this.canUndo) return false;
+    this.undoManager.undo();
     this.afterChange();
     return true;
   }
 
   redo(): boolean {
+    if (this.readOnly) return false;
     if (this.editing) this.finishEditing();
-    const next = this.history.redo(this.scene.snapshot());
-    if (!next) return false;
-    this.scene.restore(next);
+    if (!this.canRedo) return false;
+    this.undoManager.redo();
     this.afterChange();
     return true;
   }
@@ -403,7 +498,7 @@ export class Editor {
   }
 
   handleAt(screen: Vec): HandleName | null {
-    if (this.tool !== 'select') return null;
+    if (this.tool !== 'select' || this.readOnly) return null;
     const frame = this.selectionFrame;
     if (!frame) return null;
     const r = HANDLE_SIZE / 2 + 3;
@@ -437,6 +532,9 @@ export class Editor {
       return;
     }
     if (button !== 0) return;
+    if (this.readOnly && this.tool !== 'select') {
+      this.tool = 'select';
+    }
     switch (this.tool) {
       case 'select':
         this.selectPointerDown(screen, world, mods);
@@ -470,7 +568,7 @@ export class Editor {
   private selectPointerDown(screen: Vec, world: Vec, mods: Modifiers): void {
     const handle = this.handleAt(screen);
     const frame = this.selectionFrame;
-    if (handle && frame) {
+    if (handle && frame && !this.readOnly) {
       const ids = [...this.selection];
       const snap = this.beginTx();
       if (handle === 'rotate') {
@@ -491,7 +589,7 @@ export class Editor {
       } else if (!wasSelected) {
         this.selection = [target];
       }
-      if (this.selection.includes(target)) {
+      if (this.selection.includes(target) && !this.readOnly) {
         this.drag = { kind: 'move', start: world, ids: [...this.selection], moved: false, target, snap: this.beginTx(), shift: mods.shift, wasSelected };
       }
       return;
@@ -503,6 +601,8 @@ export class Editor {
   onPointerMove(screen: Vec, mods: Modifiers = NONE): void {
     const d = this.drag;
     const world = this.toWorld(screen);
+    this.pointerWorld = world;
+    for (const fn of this.pointerListeners) fn();
     if (!d) {
       const hover = this.tool === 'select' ? selectableAt(this.scene, world, 4 / this.camera.zoom) : null;
       if (hover !== this.hoverId) {
@@ -634,9 +734,13 @@ export class Editor {
     const d = this.drag;
     this.guides = [];
     if (!d) return;
-    if ((d.kind === 'move' || d.kind === 'resize' || d.kind === 'rotate') && d.snap) this.scene.restore(d.snap);
-    this.txSnap = null;
     this.drag = null;
+    if ((d.kind === 'move' || d.kind === 'resize' || d.kind === 'rotate') && d.snap) {
+      this.scene.restore(d.snap);
+      this.endTx();
+      return;
+    }
+    this.txSnap = null;
     this.notify();
   }
 
@@ -768,6 +872,8 @@ export class Editor {
   }
 
   private placeText(world: Vec): void {
+    if (this.readOnly) return;
+    this.undoManager.stopCapturing();
     const s: TextShape = {
       type: 'text',
       id: newId('text'),
@@ -781,21 +887,22 @@ export class Editor {
       fontSize: 18,
       color: SHAPE_STROKE,
     };
-    const snap = this.scene.snapshot();
     this.scene.add(s);
     this.assignFrames([s.id]);
     this.selection = [s.id];
     this.tool = 'select';
-    this.editing = { id: s.id, snap, fresh: true };
+    this.editing = { id: s.id, fresh: true };
   }
 
   // ---- text editing ------------------------------------------------------
 
   startEditing(id: Id, fresh: boolean): void {
+    if (this.readOnly) return;
     const s = this.scene.get(id);
     if (!s || !(hasText(s) || s.type === 'frame')) return;
     if (this.editing) this.finishEditing();
-    this.editing = { id, snap: this.scene.snapshot(), fresh };
+    this.undoManager.stopCapturing();
+    this.editing = { id, fresh };
     this.selection = [this.scene.topGroup(id)];
     this.notify();
   }
@@ -825,7 +932,6 @@ export class Editor {
     if (s && s.type === 'text' && s.text.trim() === '') {
       this.scene.remove([s.id]);
     }
-    if (sceneChanged(e.snap, this.scene.snapshot())) this.history.push(e.snap);
     this.afterChange();
   }
 
@@ -885,16 +991,18 @@ export class Editor {
   groupSelection(): Id | null {
     const ids = this.scene.normalizeSelection(this.selection);
     if (ids.length < 2) return null;
-    return this.transact(() => {
-      const parents = new Set(ids.map((id) => this.scene.mustGet(id).parentId));
-      const parentId = parents.size === 1 ? [...parents][0] : null;
-      const groupId = newId('group');
-      const lowest = Math.min(...ids.map((id) => this.scene.indexOf(id)));
-      this.scene.add({ type: 'group', id: groupId, parentId }, lowest);
-      for (const id of ids) this.scene.setParent(id, groupId);
-      this.selection = [groupId];
-      return groupId;
-    });
+    return (
+      this.transact(() => {
+        const parents = new Set(ids.map((id) => this.scene.mustGet(id).parentId));
+        const parentId = parents.size === 1 ? [...parents][0] : null;
+        const groupId = newId('group');
+        const lowest = Math.min(...ids.map((id) => this.scene.indexOf(id)));
+        this.scene.add({ type: 'group', id: groupId, parentId }, lowest);
+        for (const id of ids) this.scene.setParent(id, groupId);
+        this.selection = [groupId];
+        return groupId;
+      }) ?? null
+    );
   }
 
   ungroupSelection(): void {
@@ -933,14 +1041,16 @@ export class Editor {
     const shapes = this.clipboard;
     if (!shapes || shapes.length === 0) return [];
     const d = offset / this.camera.zoom;
-    return this.transact(() => {
-      const source = new Scene();
-      for (const s of shapes) source.add(s);
-      const ids = pasteShapes(this.scene, source, shapes, d, d);
-      this.assignFrames(ids);
-      this.selection = ids;
-      return ids;
-    });
+    return (
+      this.transact(() => {
+        const source = new Scene();
+        for (const s of shapes) source.add(s);
+        const ids = pasteShapes(this.scene, source, shapes, d, d);
+        this.assignFrames(ids);
+        this.selection = ids;
+        return ids;
+      }) ?? []
+    );
   }
 
   duplicate(): void {
@@ -1248,6 +1358,14 @@ function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K
   return out;
 }
 
+function sceneChanged(a: SceneSnapshot, b: SceneSnapshot): boolean {
+  if (a.order.length !== b.order.length) return true;
+  for (let i = 0; i < a.order.length; i++) if (a.order[i] !== b.order[i]) return true;
+  if (a.shapes.size !== b.shapes.size) return true;
+  for (const [id, s] of a.shapes) if (b.shapes.get(id) !== s) return true;
+  return false;
+}
+
 const TYPE_LABELS: Record<Shape['type'], string> = {
   rect: 'rectangle',
   ellipse: 'ellipse',
@@ -1272,12 +1390,4 @@ function describeShape(s: Shape): string {
 
 function midpoint(a: Vec, b: Vec): Vec {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function sceneChanged(a: SceneSnapshot, b: SceneSnapshot): boolean {
-  if (a.order.length !== b.order.length) return true;
-  for (let i = 0; i < a.order.length; i++) if (a.order[i] !== b.order[i]) return true;
-  if (a.shapes.size !== b.shapes.size) return true;
-  for (const [id, s] of a.shapes) if (b.shapes.get(id) !== s) return true;
-  return false;
 }

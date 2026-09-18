@@ -12,10 +12,17 @@ size; elbow and curved connectors with side anchors; snapping with guides,
 grid snap, align and distribute; two-finger touch pan and pinch; a focusable,
 announced canvas with keyboard object navigation.
 
+Phase 2 (first cut) is in: boards live on a sync server, several people edit
+one at once with live cursors and selections, undo is per user, and boards are
+shared by anonymous edit or view links.
+
 What is still thin:
 
-- **Persistence is a JSON download.** Close the tab and the board is gone. Undo
-  history lives in memory only.
+- **No accounts.** Links are the only credentials; there is no board list, no
+  way to revoke a link, and no per-user roles beyond edit and view.
+- **No comments.**
+- **Concurrent reorders** of the z-order can briefly produce duplicate entries
+  that are dropped on read; a fractional-index order would remove the case.
 - **Connector labels and connector-to-connector bends** are missing; routing
   is a single mid-point elbow with no obstacle avoidance.
 - **Resize does not snap**; only moves do. No smart spacing guides between
@@ -26,18 +33,16 @@ What is still thin:
 
 ## Phase 2: make it a product (persist, share, collaborate)
 
-This is the real gap. Without it nothing else matters.
+This is the real gap. Without it nothing else matters. Items marked done
+shipped in the first phase 2 PR.
 
-1. Server-side boards: accounts, a board list, autosave, versioned snapshots.
-   The download-based save stops being the primary path.
-2. Real-time multi-user editing. A CRDT (for example Yjs) is the recommended
-   model over the current snapshot approach. Snapshot-based undo has to become
-   per-user and operation-based, which is a rewrite of `history.ts`, not a
-   patch.
-3. Presence: live cursors with names, remote selection highlights, follow a
-   user.
-4. Sharing: links with view, comment and edit roles; board-level and
-   workspace-level permissions.
+1. Server-side boards: autosave and a Yjs document per board on a Node sync
+   server with Postgres (done); accounts, a board list, versioned snapshots.
+2. Real-time multi-user editing with Yjs and per-user undo (done).
+3. Presence: live cursors with names, remote selection highlights (done);
+   follow a user.
+4. Sharing: anonymous edit and view links (done); comment role, revocation,
+   board-level and workspace-level permissions once accounts exist.
 5. Comments: threads anchored to objects or positions, resolve, mentions.
 
 ## Phase 3: editing quality

@@ -1,13 +1,16 @@
 import type { Editor } from './editor/Editor';
 import { serializeScene } from './model/serialize';
+import type { SyncSession } from './sync/session';
 
 /**
  * A small, stable surface for end-to-end tests to inspect editor state.
  * Everything returned is plain JSON so it survives page.evaluate.
  */
-export function installTestHooks(editor: Editor): void {
+export function installTestHooks(editor: Editor, session: SyncSession | null = null): void {
   const api = {
     editor,
+    session,
+    sync: () => (session ? { status: session.status, synced: session.synced, role: session.info.role, boardId: session.info.boardId, editLink: session.info.editLink, viewLink: session.info.viewLink } : null),
     shapes: () => serializeScene(editor.scene).shapes,
     shape: (id: string) => editor.scene.get(id) ?? null,
     bounds: (id: string) => editor.scene.bounds(id),
@@ -25,7 +28,10 @@ export function installTestHooks(editor: Editor): void {
     load: (data: unknown) => editor.loadBoardFile(data),
     renderNow: () => editor.renderNow(),
     stats: () => ({ ...editor.lastRenderStats, ms: editor.lastRenderMs }),
-    history: () => ({ undo: editor.history.undoDepth, redo: editor.history.redoDepth }),
+    history: () => ({ undo: editor.undoManager.undoStack.length, redo: editor.undoManager.redoStack.length }),
+    peers: () => editor.peers.map((p) => ({ ...p })),
+    readOnly: () => editor.readOnly,
+    title: () => editor.title,
     handles: () => editor.selectionFrame?.handles ?? null,
     guides: () => editor.guides.map((g) => ({ ...g })),
     tool: () => editor.tool,

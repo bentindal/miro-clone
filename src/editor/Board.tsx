@@ -51,15 +51,17 @@ export function Board({ editor }: { editor: Editor }) {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'SELECT')) return;
+      if (editor.readOnly && !['Tab', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'v', 'h', 'V', 'H', '+', '=', '-', ' '].includes(e.key) && !(e.ctrlKey || e.metaKey)) return;
       if (e.key === 'Tab' && target === canvas) {
         // Cycle through objects; at either end let focus leave the canvas normally.
         if (editor.selectNext(e.shiftKey ? -1 : 1)) e.preventDefault();
         return;
       }
       if (e.key === 'Enter' && target === canvas) {
-        if (editor.activateSelection()) e.preventDefault();
+        if (!editor.readOnly && editor.activateSelection()) e.preventDefault();
         return;
       }
+      if (editor.readOnly && (e.ctrlKey || e.metaKey) && !['a', 'A', '0', '=', '+', '-', '1'].includes(e.key)) return;
       if (e.key === ' ') {
         editor.setSpaceHeld(true);
         e.preventDefault();
