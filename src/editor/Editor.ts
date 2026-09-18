@@ -3,6 +3,7 @@ import {
   type Camera,
   type Vec,
   boxCenter,
+  worldToScreen,
   boxFromPoints,
   boxesIntersect,
   boundsOfPoints,
@@ -49,6 +50,18 @@ import {
 import { type AlignKind, type Guide, alignDeltas, computeSnap, distributeDeltas } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
+import { CommentStore } from '../sync/comments';
+
+/** A comment pin as drawn on the canvas. */
+export interface Pin {
+  id: string;
+  /** World position. */
+  x: number;
+  y: number;
+  count: number;
+  resolved: boolean;
+  active: boolean;
+}
 
 /** A collaborator's presence as shown on the canvas. */
 export interface Peer {
@@ -59,9 +72,12 @@ export interface Peer {
   selection: Id[];
 }
 
-export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame';
+export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame' | 'comment';
 
-export const TOOLS: Tool[] = ['select', 'hand', 'rect', 'ellipse', 'line', 'sticky', 'text', 'pen', 'connector', 'frame'];
+export const TOOLS: Tool[] = ['select', 'hand', 'rect', 'ellipse', 'line', 'sticky', 'text', 'pen', 'connector', 'frame', 'comment'];
+
+/** Screen-pixel radius of a comment pin. */
+export const PIN_RADIUS = 11;
 
 export interface Modifiers {
   shift: boolean;
@@ -106,6 +122,13 @@ export class Editor {
   readonly origin = { editor: true };
   readonly binding: DocBinding;
   readonly undoManager: Y.UndoManager;
+  readonly comments: CommentStore;
+  /** Thread open in the comments panel. */
+  activeThreadId: string | null = null;
+  /** A comment being composed that has no message yet. */
+  pendingComment: { shapeId: Id | null; x: number; y: number } | null = null;
+  commentsOpen = false;
+  showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
   /** Other people on this board, for rendering cursors and selections. */
@@ -150,6 +173,105 @@ export class Editor {
       captureTimeout: Number.MAX_SAFE_INTEGER,
     });
     this.undoManager.on('stack-item-popped', () => this.notify());
+    this.comments = new CommentStore(doc, this.origin);
+    this.comments.subscribe(() => this.notify());
+  }
+
+  // ---- comments ----------------------------------------------------------
+
+  /** Pins for every thread (resolved ones only when shown), positioned by their shape when it still exists. */
+  pins(): Pin[] {
+    const out: Pin[] = [];
+    for (const t of this.comments.list()) {
+      if (t.resolved && !this.showResolved) continue;
+      let x = t.x;
+      let y = t.y;
+      if (t.shapeId && this.scene.has(t.shapeId)) {
+        const b = this.scene.bounds(t.shapeId);
+        x = b.x + b.w;
+        y = b.y;
+      }
+      out.push({ id: t.id, x, y, count: t.messages.length, resolved: t.resolved, active: t.id === this.activeThreadId });
+    }
+    return out;
+  }
+
+  private pinForPending(): Vec {
+    const p = this.pendingComment!;
+    if (p.shapeId && this.scene.has(p.shapeId)) {
+      const b = this.scene.bounds(p.shapeId);
+      return { x: b.x + b.w, y: b.y };
+    }
+    return { x: p.x, y: p.y };
+  }
+
+  /** The pin under a screen point, if any. */
+  pinAt(screen: Vec): Pin | null {
+    for (const pin of this.pins().reverse()) {
+      const p = worldToScreen(this.camera, { x: pin.x, y: pin.y });
+      if (dist(p, screen) <= PIN_RADIUS + 2) return pin;
+    }
+    return null;
+  }
+
+  openThread(id: string | null): void {
+    this.activeThreadId = id;
+    this.pendingComment = null;
+    if (id) this.commentsOpen = true;
+    this.notify();
+  }
+
+  setCommentsOpen(open: boolean): void {
+    this.commentsOpen = open;
+    if (!open) {
+      this.activeThreadId = null;
+      this.pendingComment = null;
+    }
+    this.notify();
+  }
+
+  setShowResolved(show: boolean): void {
+    this.showResolved = show;
+    this.notify();
+  }
+
+  /** Start composing a comment at a world point, anchored to the shape there if any. */
+  beginComment(world: Vec): void {
+    if (this.readOnly) return;
+    const hit = hitTest(this.scene, world, 4 / this.camera.zoom);
+    this.pendingComment = { shapeId: hit ? hit.id : null, x: world.x, y: world.y };
+    this.activeThreadId = null;
+    this.commentsOpen = true;
+    this.tool = 'select';
+    this.notify();
+  }
+
+  cancelComment(): void {
+    this.pendingComment = null;
+    this.notify();
+  }
+
+  /** Post the pending comment's first message; returns the new thread id. */
+  postComment(author: { name: string; color: string }, text: string): string | null {
+    const pending = this.pendingComment;
+    if (!pending || this.readOnly || !text.trim()) return null;
+    const id = this.comments.create(pending, { author: author.name, color: author.color, text: text.trim() });
+    this.pendingComment = null;
+    this.activeThreadId = id;
+    this.notify();
+    return id;
+  }
+
+  replyToThread(id: string, author: { name: string; color: string }, text: string): void {
+    if (this.readOnly || !text.trim()) return;
+    this.comments.reply(id, { author: author.name, color: author.color, text: text.trim() });
+  }
+
+  resolveThread(id: string, resolved: boolean): void {
+    if (this.readOnly) return;
+    this.comments.setResolved(id, resolved);
+    if (resolved && this.activeThreadId === id) this.activeThreadId = null;
+    this.notify();
   }
 
   /** Populate from a synced document (or seed the document from this scene). */
@@ -286,6 +408,8 @@ export class Editor {
       anchorTargetId: d?.kind === 'connector' ? (d.endId ?? (dist(d.start, d.current) * this.camera.zoom < DRAG_THRESHOLD ? d.startId : null)) : null,
       guides: this.guides,
       peers: this.peers,
+      pins: this.pins(),
+      pendingPin: this.pendingComment ? this.pinForPending() : null,
       editingId: this.editing?.id ?? null,
     };
   }
@@ -518,6 +642,7 @@ export class Editor {
       return map[h];
     }
     if (this.tool !== 'select') return 'crosshair';
+    if (this.pinAt(screen)) return 'pointer';
     return this.hoverId ? 'move' : 'default';
   }
 
@@ -534,6 +659,17 @@ export class Editor {
     if (button !== 0) return;
     if (this.readOnly && this.tool !== 'select') {
       this.tool = 'select';
+    }
+    if (this.tool === 'comment') {
+      this.beginComment(world);
+      return;
+    }
+    if (this.tool === 'select') {
+      const pin = this.pinAt(screen);
+      if (pin) {
+        this.openThread(pin.id);
+        return;
+      }
     }
     switch (this.tool) {
       case 'select':
@@ -1262,6 +1398,7 @@ export class Editor {
         return true;
       case 'Escape':
         if (this.drag) this.cancelDrag();
+        else if (this.pendingComment) this.cancelComment();
         else if (this.selection.length) this.clearSelection();
         else this.setTool('select');
         return true;
@@ -1307,7 +1444,7 @@ export class Editor {
       this.setGridSnap(!this.gridSnap);
       return true;
     }
-    const toolKeys: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', l: 'line', n: 'sticky', t: 'text', p: 'pen', c: 'connector', f: 'frame' };
+    const toolKeys: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', l: 'line', n: 'sticky', t: 'text', p: 'pen', c: 'connector', f: 'frame', m: 'comment' };
     if (k in toolKeys && !mods.alt) {
       this.setTool(toolKeys[k]);
       return true;

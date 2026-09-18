@@ -136,7 +136,7 @@ e2e           Playwright specs, one file per SPEC.md item
 
 | Key | Action |
 | --- | --- |
-| V H R O L N T P C F | Select, hand, rectangle, ellipse, line, sticky, text, pen, connector, frame |
+| V H R O L N T P C F M | Select, hand, rectangle, ellipse, line, sticky, text, pen, connector, frame, comment |
 | Wheel / Ctrl+wheel | Pan / zoom (trackpad pinch) |
 | Space + drag, middle drag | Pan |
 | Two fingers (touch) | Pan and pinch zoom |

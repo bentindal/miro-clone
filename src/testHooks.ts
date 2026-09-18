@@ -33,6 +33,9 @@ export function installTestHooks(editor: Editor, session: SyncSession | null = n
     readOnly: () => editor.readOnly,
     title: () => editor.title,
     handles: () => editor.selectionFrame?.handles ?? null,
+    comments: () => editor.comments.list(),
+    pins: () => editor.pins(),
+    activeThread: () => editor.activeThreadId,
     guides: () => editor.guides.map((g) => ({ ...g })),
     tool: () => editor.tool,
   };

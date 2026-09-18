@@ -100,7 +100,13 @@ export default function App() {
   return (
     <div className="app">
       <Toolbar editor={editor} session={boot.kind === 'online' ? boot.session : null} mode={boot.kind} />
-      {boot.kind === 'loading' ? <div className="boot-message" data-testid="boot-loading">Opening board…</div> : <Board editor={editor} />}
+      {boot.kind === 'loading' ? (
+        <div className="boot-message" data-testid="boot-loading">
+          Opening board…
+        </div>
+      ) : (
+        <Board editor={editor} />
+      )}
     </div>
   );
 }
