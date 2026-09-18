@@ -24,12 +24,8 @@ What is still thin:
   browser, links cannot be revoked, and roles stop at edit and view.
 - **Comments are edit-only.** A "comment" role would need the server to let
   viewers write the `comments` map and nothing else.
-- **Concurrent reorders** of the z-order can briefly produce duplicate entries
-  that are dropped on read; a fractional-index order would remove the case.
-- **Connector labels and connector-to-connector bends** are missing; routing
-  is a single mid-point elbow with no obstacle avoidance.
-- **Resize does not snap**; only moves do. No smart spacing guides between
-  three or more objects.
+- **Connector-to-connector bends** and obstacle avoidance are missing;
+  routing is a single mid-point elbow.
 - **Text is plain.** No bold, lists or links; sticky notes do not auto-fit.
 - **Accessibility is a first pass.** Objects are announced and reachable, but
   there is no keyboard resize or rotate, and no high-contrast theme.
@@ -56,10 +52,10 @@ done shipped in phase 1b.
 
 1. Floating property toolbar: colours, stroke, font, alignment, sticky colour,
    connector style. (done)
-2. Connector routing: elbow and curved paths, snap to anchor points (done);
-   labels, arrowhead options, connector-to-connector bends, obstacle avoidance.
-3. Snapping and smart guides, align and distribute commands, grid snap toggle
-   (done for moves); resize snapping and equal-spacing guides.
+2. Connector routing: elbow and curved paths, snap to anchor points, labels,
+   arrowhead options (done); connector-to-connector bends, obstacle avoidance.
+3. Snapping and smart guides, align and distribute, grid snap, resize
+   snapping and equal-spacing guides (done).
 4. Sticky notes that auto-fit their text, tags on stickies, voting dots.
 5. Rich text: bold, lists, links, in-place font sizing.
 6. Touch and pen input: two-finger pan and pinch (done); palm rejection,

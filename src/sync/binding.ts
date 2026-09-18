@@ -2,13 +2,16 @@ import * as Y from 'yjs';
 import { Scene, type SceneSnapshot } from '../model/scene';
 import { validateShape } from '../model/serialize';
 import type { Id, Shape } from '../model/types';
+import { assignKeys, compareKeyed, isValidKey } from './fractional';
 
 /**
  * Keeps a Scene and a Y.Doc in step.
  *
  * Document layout:
- * - `shapes`: Y.Map<Y.Map>, one nested map per shape keyed by id, one entry per field
- * - `order`:  Y.Array<string> of shape ids, bottom to top
+ * - `shapes`: Y.Map<Y.Map>, one nested map per shape keyed by id, one entry per
+ *   field plus `z`, a fractional index key that gives the z-order (ties by id)
+ * - `order`:  legacy Y.Array<string> of ids, read only for boards written
+ *   before `z` existed
  * - `meta`:   Y.Map with `title`
  *
  * Local edits are made to the Scene first (immutable records), then
@@ -18,8 +21,11 @@ import type { Id, Shape } from '../model/types';
  */
 export class DocBinding {
   readonly shapes: Y.Map<Y.Map<unknown>>;
+  /** Legacy order array; never written any more. */
   readonly order: Y.Array<string>;
   readonly meta: Y.Map<unknown>;
+  /** Editors migrate legacy boards to `z` keys on adopt; viewers must not write. */
+  writable = true;
   private lastSynced: SceneSnapshot;
   private lastVersion = -1;
   private pendingShapes = new Set<Id>();
@@ -77,11 +83,12 @@ export class DocBinding {
           const shape = this.readShape(id, ymap);
           if (shape) this.scene.put(shape);
         }
-        this.scene.setOrder(this.order.toArray());
+        this.scene.setOrder(this.readOrder());
       } finally {
         this.applying = false;
       }
       this.markSynced();
+      if (this.writable) this.migrateLegacyOrder();
       this.onRemote({ shapes: true, meta: true });
     } else {
       this.lastSynced = { shapes: new Map(), order: [] };
@@ -112,13 +119,57 @@ export class DocBinding {
     const orderChanged = !sameArray(before.order, after.order);
     this.lastSynced = after;
     this.lastVersion = this.scene.version;
-    if (upserts.length === 0 && deletes.length === 0 && !orderChanged) return false;
+    const newKeys = orderChanged || upserts.some((s) => !before.shapes.has(s.id)) ? assignKeys(after.order, this.currentKeys()) : new Map<Id, string>();
+    if (upserts.length === 0 && deletes.length === 0 && newKeys.size === 0) return false;
     this.doc.transact(() => {
       for (const id of deletes) this.shapes.delete(id);
       for (const shape of upserts) this.writeShape(shape, before.shapes.get(shape.id));
-      if (orderChanged) this.writeOrder(after.order);
+      for (const [id, z] of newKeys) this.shapes.get(id)?.set('z', z);
     }, this.origin);
     return true;
+  }
+
+  /** Every shape's current `z` key from the document. */
+  private currentKeys(): Map<Id, string> {
+    const keys = new Map<Id, string>();
+    for (const [id, ymap] of this.shapes) {
+      const z = ymap.get('z');
+      if (isValidKey(z)) keys.set(id, z);
+    }
+    return keys;
+  }
+
+  /**
+   * Z-order from the document: shapes with keys sorted by (key, id). Shapes
+   * without a key (boards from before keys existed) come first in the legacy
+   * array's order, then any leftovers by id.
+   */
+  private readOrder(): Id[] {
+    const keyed: { key: string; id: Id }[] = [];
+    const unkeyed = new Set<Id>();
+    for (const [id, ymap] of this.shapes) {
+      const z = ymap.get('z');
+      if (isValidKey(z)) keyed.push({ key: z, id });
+      else unkeyed.add(id);
+    }
+    keyed.sort(compareKeyed);
+    const legacy: Id[] = [];
+    if (unkeyed.size) {
+      for (const id of this.order.toArray()) if (unkeyed.delete(id)) legacy.push(id);
+      legacy.push(...[...unkeyed].sort());
+    }
+    return [...legacy, ...keyed.map((k) => k.id)];
+  }
+
+  /** Give every keyless shape a key that preserves the order just read. */
+  private migrateLegacyOrder(): void {
+    const keys = this.currentKeys();
+    if (keys.size === this.shapes.size) return;
+    const newKeys = assignKeys(this.scene.ids(), keys);
+    if (newKeys.size === 0) return;
+    this.doc.transact(() => {
+      for (const [id, z] of newKeys) this.shapes.get(id)?.set('z', z);
+    }, this.origin);
   }
 
   private markSynced(): void {
@@ -144,7 +195,7 @@ export class DocBinding {
         else deletes.push(id);
       }
       if (deletes.length) this.scene.deleteRaw(deletes);
-      if (this.pendingOrder || deletes.length) this.scene.setOrder(this.order.toArray());
+      this.scene.setOrder(this.readOrder());
     } finally {
       this.applying = false;
       this.pendingShapes.clear();
@@ -174,28 +225,13 @@ export class DocBinding {
     const record = shape as unknown as Record<string, unknown>;
     const prevRecord = prev as unknown as Record<string, unknown> | undefined;
     for (const key of Object.keys(record)) {
-      if (key === 'id') continue;
+      if (key === 'id' || key === 'z') continue;
       const value = record[key];
       if (value === undefined) continue;
       if (prevRecord && deepEqual(prevRecord[key], value) && ymap.has(key)) continue;
       ymap.set(key, clone(value));
     }
     if (prevRecord) for (const key of Object.keys(prevRecord)) if (!(key in record) && ymap.has(key)) ymap.delete(key);
-  }
-
-  /** Replace only the differing middle of the order array. */
-  private writeOrder(next: readonly Id[]): void {
-    const cur = this.order.toArray();
-    let start = 0;
-    while (start < cur.length && start < next.length && cur[start] === next[start]) start++;
-    let endCur = cur.length;
-    let endNext = next.length;
-    while (endCur > start && endNext > start && cur[endCur - 1] === next[endNext - 1]) {
-      endCur--;
-      endNext--;
-    }
-    if (endCur > start) this.order.delete(start, endCur - start);
-    if (endNext > start) this.order.insert(start, next.slice(start, endNext));
   }
 }
 

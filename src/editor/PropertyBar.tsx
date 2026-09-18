@@ -1,4 +1,4 @@
-import { ANCHORS, CONNECTOR_STYLES, type Anchor, type ConnectorStyle, type Shape } from '../model/types';
+import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, type ConnectorStyle, type Shape } from '../model/types';
 import type { Editor, StylePatch } from './Editor';
 import { useEditorVersion } from './useEditor';
 
@@ -41,6 +41,9 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const currentStyle = connectors.length ? (connectors[0] as { style: ConnectorStyle }).style : undefined;
   const startAnchor = connectors.length ? (connectors[0] as { start: { anchor: Anchor } }).start.anchor : undefined;
   const endAnchor = connectors.length ? (connectors[0] as { end: { anchor: Anchor } }).end.anchor : undefined;
+  const startArrow = connectors.length ? (connectors[0] as { startArrow: ArrowHead }).startArrow : undefined;
+  const endArrow = connectors.length ? (connectors[0] as { endArrow: ArrowHead }).endArrow : undefined;
+  const label = connectors.length === 1 ? (connectors[0] as { label: string }).label : '';
 
   const hs = Object.values(frame.handles);
   const minX = Math.min(...hs.map((h) => h.x));
@@ -178,6 +181,35 @@ export function PropertyBar({ editor }: { editor: Editor }) {
               </option>
             ))}
           </select>
+          <span className="prop-label">Heads</span>
+          <select data-testid="prop-arrow-start" aria-label="Start arrowhead" value={startArrow} onChange={(e) => apply({ startArrow: e.target.value as ArrowHead })}>
+            {ARROW_HEADS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          <select data-testid="prop-arrow-end" aria-label="End arrowhead" value={endArrow} onChange={(e) => apply({ endArrow: e.target.value as ArrowHead })}>
+            {ARROW_HEADS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          {connectors.length === 1 && (
+            <input
+              className="label-input"
+              data-testid="prop-label"
+              aria-label="Connector label"
+              placeholder="Label"
+              value={label}
+              onChange={(e) => apply({ label: e.target.value })}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
+              }}
+            />
+          )}
         </div>
       )}
     </div>

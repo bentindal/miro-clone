@@ -272,8 +272,11 @@ export class Scene {
         if (leaves.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
         return unionBoxes(leaves.map((l) => this.bounds(l)));
       }
-      case 'connector':
-        return boundsOfPoints(this.connectorGeometry(s).points);
+      case 'connector': {
+        const points = this.connectorGeometry(s).points;
+        const b = boundsOfPoints(points);
+        return s.label ? unionBoxes([b, connectorLabelBox(s.label, polylineMidpoint(points))]) : b;
+      }
       default: {
         const cached = boundsCache.get(s);
         if (cached) return cached;
@@ -332,6 +335,11 @@ export class Scene {
         return { points, curve: { c1, c2 } };
       }
     }
+  }
+
+  /** The point halfway along a connector's drawn path, where its label sits. */
+  connectorMidpoint(c: ConnectorShape): Vec {
+    return polylineMidpoint(this.connectorGeometry(c).points);
   }
 
   /** Midpoint of a shape's side plus its outward normal, honouring rotation. */
@@ -612,6 +620,31 @@ export function simplifyPolyline(points: Vec[]): Vec[] {
     else i++;
   }
   return out;
+}
+
+/** Point at half the total length of a polyline. */
+export function polylineMidpoint(points: readonly Vec[]): Vec {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += dist(points[i - 1], points[i]);
+  let remaining = total / 2;
+  for (let i = 1; i < points.length; i++) {
+    const seg = dist(points[i - 1], points[i]);
+    if (seg >= remaining) {
+      const t = seg === 0 ? 0 : remaining / seg;
+      return { x: points[i - 1].x + (points[i].x - points[i - 1].x) * t, y: points[i - 1].y + (points[i].y - points[i - 1].y) * t };
+    }
+    remaining -= seg;
+  }
+  return points[points.length - 1];
+}
+
+/** Approximate size of a connector label's pill in world units (12px font, 6px padding). */
+export function connectorLabelBox(label: string, mid: Vec): Box {
+  const w = Math.max(16, label.length * 6.6 + 12);
+  const h = 18;
+  return { x: mid.x - w / 2, y: mid.y - h / 2, w, h };
 }
 
 export function bezierPoint(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: number): Vec {

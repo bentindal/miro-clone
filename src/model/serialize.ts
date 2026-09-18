@@ -1,5 +1,5 @@
 import { Scene } from './scene';
-import { ANCHORS, CONNECTOR_STYLES, type Anchor, type ConnectorStyle, type Id, type Shape } from './types';
+import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, type ConnectorStyle, type Id, type Shape } from './types';
 
 export const BOARD_FORMAT_VERSION = 1;
 
@@ -72,6 +72,10 @@ function optNum(v: unknown, fallback: number): number {
 
 function anchor(v: unknown): Anchor {
   return typeof v === 'string' && (ANCHORS as string[]).includes(v) ? (v as Anchor) : 'auto';
+}
+
+function arrowHead(v: unknown, fallback: ArrowHead): ArrowHead {
+  return typeof v === 'string' && (ARROW_HEADS as string[]).includes(v) ? (v as ArrowHead) : fallback;
 }
 
 function connectorStyle(v: unknown): ConnectorStyle {
@@ -168,6 +172,9 @@ export function validateShape(raw: unknown): Shape {
         stroke: optStr(raw.stroke, '#222222'),
         strokeWidth: optNum(raw.strokeWidth, 2),
         style: connectorStyle(raw.style),
+        startArrow: arrowHead(raw.startArrow, 'none'),
+        endArrow: arrowHead(raw.endArrow, 'arrow'),
+        label: optStr(raw.label, ''),
       };
     default:
       throw new Error(`Unknown shape type ${String(type)}`);

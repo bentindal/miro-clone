@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignDeltas, computeSnap, distributeDeltas } from '../snap';
+import { alignDeltas, computeSnap, distributeDeltas, snapEdges } from '../snap';
 
 const box = (x: number, y: number, w = 100, h = 50) => ({ x, y, w, h });
 
@@ -24,7 +24,7 @@ describe('computeSnap', () => {
 
   it('ignores candidates outside the threshold', () => {
     const r = computeSnap(box(120, 300), [box(100, 100)], 6, null);
-    expect(r).toEqual({ dx: 0, dy: 0, guides: [] });
+    expect(r).toEqual({ dx: 0, dy: 0, guides: [], spacing: [] });
   });
 
   it('snaps both axes independently and emits two guides', () => {
@@ -41,9 +41,66 @@ describe('computeSnap', () => {
     expect(r.dx).toBe(7);
     expect(r.dy).toBe(0); // 300 is already on the grid
     expect(r.guides).toEqual([]);
+    expect(r.spacing).toEqual([]);
     const r2 = computeSnap(box(102, 311), [box(100, 100)], 6, 20);
     expect(r2.dx).toBe(-2); // shape snap beats grid
     expect(r2.dy).toBe(9); // 311 -> 320
+  });
+});
+
+describe('even spacing', () => {
+  // Two boxes in a row 40 apart: A at 0..100, B at 140..240, both at y 0..50.
+  // The moving box sits at y 33..83: overlapping the row, but no y edge or centre within 6 of theirs.
+  const row = [box(0, 0), box(140, 0)];
+
+  it('snaps a third box to continue the row with the same gap', () => {
+    const r = computeSnap(box(283, 33), row, 6, null);
+    expect(r.dx).toBe(-3); // 283 -> 280 = B.right 240 + gap 40
+    expect(r.dy).toBe(0);
+    expect(r.guides).toEqual([]);
+    expect(r.spacing).toEqual([{ axis: 'x', at: 41.5, gaps: [[100, 140], [240, 280]] }]);
+  });
+
+  it('snaps before the row too, and centred between two boxes', () => {
+    const before = computeSnap(box(-143, 33), row, 6, null);
+    expect(before.dx).toBe(3); // -143 -> -140 = A.left 0 - gap 40 - width 100
+    const wide = [box(0, 0), box(300, 0)];
+    const centred = computeSnap(box(153, 33), wide, 6, null);
+    expect(centred.dx).toBe(-3); // gap 200, box 100 -> 50 each side -> x = 150
+    expect(centred.spacing[0].gaps).toEqual([[100, 150], [250, 300]]);
+  });
+
+  it('ignores boxes that do not overlap on the cross axis', () => {
+    const r = computeSnap(box(283, 500), row, 6, null);
+    expect(r.dx).toBe(0);
+    expect(r.spacing).toEqual([]);
+  });
+
+  it('edge snapping wins over spacing', () => {
+    // An extra box with a left edge at 281, 2 away, beats the spacing target at 280.
+    const r = computeSnap(box(283, 33), [...row, box(281, 200, 10, 10)], 6, null);
+    expect(r.dx).toBe(-2);
+    expect(r.guides).toHaveLength(1);
+    expect(r.spacing).toEqual([]);
+  });
+});
+
+describe('snapEdges', () => {
+  it('snaps only the moving edges and reports their guides', () => {
+    const r = snapEdges(box(0, 0, 104, 50), { right: true }, [box(100, 100, 50, 50)], 6, null);
+    expect(r.right).toBe(100);
+    expect(r.left).toBeUndefined();
+    expect(r.guides).toEqual([{ axis: 'x', value: 100, from: 0, to: 150 }]);
+  });
+
+  it('snaps to centres and falls back to the grid', () => {
+    const r = snapEdges(box(0, 0, 100, 53), { bottom: true, left: true }, [box(200, 40, 100, 20)], 6, 20);
+    expect(r.bottom).toBe(50); // centre of the other box
+    expect(r.left).toBe(0); // grid
+    // 71 is beyond the other box's bottom edge (60) by more than the threshold, so the grid wins.
+    const r2 = snapEdges(box(0, 0, 100, 71), { bottom: true }, [box(200, 40, 100, 20)], 6, 20);
+    expect(r2.bottom).toBe(80);
+    expect(r2.guides).toEqual([]);
   });
 });
 

@@ -11,6 +11,10 @@ export type ConnectorStyle = 'straight' | 'elbow' | 'curved';
 
 export const CONNECTOR_STYLES: ConnectorStyle[] = ['straight', 'elbow', 'curved'];
 
+export type ArrowHead = 'none' | 'arrow' | 'open' | 'dot' | 'bar';
+
+export const ARROW_HEADS: ArrowHead[] = ['none', 'arrow', 'open', 'dot', 'bar'];
+
 interface ShapeBase {
   id: Id;
   /** Group or frame that contains this shape. */
@@ -95,6 +99,10 @@ export interface ConnectorShape extends ShapeBase {
   stroke: string;
   strokeWidth: number;
   style: ConnectorStyle;
+  startArrow: ArrowHead;
+  endArrow: ArrowHead;
+  /** Text shown at the midpoint of the path. */
+  label: string;
 }
 
 export type Shape =
