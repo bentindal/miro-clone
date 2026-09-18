@@ -74,7 +74,11 @@ Single-user editing of a board in the browser. No networking yet.
       `dragging past the opposite edge flips instead of collapsing`,
       `dragging the rotate handle rotates around the centre`,
       `a multi-selection scales all members together`.
-- [ ] Copy and paste, including groups and connectors between copied shapes.
+- [x] Copy and paste, including groups and connectors between copied shapes.
+      Proof: [`e2e/clipboard.spec.ts`](e2e/clipboard.spec.ts) › `copy and paste` ›
+      `pastes copies offset from the originals with their content`,
+      `copying a group with a connector keeps the copy wired together`,
+      `cut removes the originals and paste brings them back`.
 - [ ] Z-order: bring forward, send backward, bring to front, send to back.
 - [ ] Undo and redo across every editing operation above.
 ### Persistence
