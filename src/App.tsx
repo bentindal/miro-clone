@@ -2,21 +2,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { Board } from './editor/Board';
 import { Editor } from './editor/Editor';
 import { Toolbar } from './editor/Toolbar';
+import { Home } from './Home';
 import { ApiError, createBoard, getBoard, parseBoardLocation } from './sync/api';
+import { rememberBoard, updateRecentTitle } from './sync/recent';
 import { SyncSession, loadUser } from './sync/session';
 import { installTestHooks } from './testHooks';
 import './app.css';
 
 type Boot =
+  | { kind: 'home' }
   | { kind: 'loading' }
   | { kind: 'local'; reason: string }
   | { kind: 'error'; message: string }
   | { kind: 'online'; session: SyncSession };
 
 /**
- * Decides how the editor is backed:
+ * Decides what to show:
+ * - `/` lists the boards this browser has opened;
+ * - `/new` asks the server for a new board and moves to its edit link;
  * - `/b/:id#token` joins that board through the sync server;
- * - `/` asks the server for a new board and moves to its edit link;
  * - if the server cannot be reached the board stays in this tab only.
  */
 export default function App() {
@@ -25,11 +29,13 @@ export default function App() {
     installTestHooks(e);
     return e;
   }, []);
-  const [boot, setBoot] = useState<Boot>({ kind: 'loading' });
+  const [boot, setBoot] = useState<Boot>(() => (window.location.pathname === '/' ? { kind: 'home' } : { kind: 'loading' }));
 
   useEffect(() => {
+    if (boot.kind === 'home') return;
     let cancelled = false;
     let session: SyncSession | null = null;
+    let unsubscribeTitle: (() => void) | null = null;
     (async () => {
       try {
         let loc = parseBoardLocation();
@@ -43,6 +49,9 @@ export default function App() {
         const links = SyncSession.links(info.id, info.role, info.role === 'edit' ? loc.token : null, info.role === 'edit' ? (info.viewToken ?? null) : loc.token);
         session = new SyncSession(editor, { boardId: info.id, role: info.role, ...links }, loc.token, loadUser());
         installTestHooks(editor, session);
+        rememberBoard({ id: info.id, title: info.title, token: loc.token, role: info.role });
+        const boardId = info.id;
+        unsubscribeTitle = editor.subscribe(() => updateRecentTitle(boardId, editor.title));
         setBoot({ kind: 'online', session });
       } catch (err) {
         if (cancelled) return;
@@ -61,9 +70,20 @@ export default function App() {
     return () => {
       cancelled = true;
       window.removeEventListener('hashchange', onHashChange);
+      unsubscribeTitle?.();
       session?.destroy();
     };
+    // The boot kind is fixed at mount: the page reloads on navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
+
+  if (boot.kind === 'home') {
+    return (
+      <div className="app">
+        <Home />
+      </div>
+    );
+  }
 
   if (boot.kind === 'error') {
     return (
@@ -71,7 +91,7 @@ export default function App() {
         <div className="boot-message" role="alert" data-testid="boot-error">
           <h1>Cannot open board</h1>
           <p>{boot.message}</p>
-          <a href="/">Start a new board</a>
+          <a href="/new">Start a new board</a> or <a href="/">see your boards</a>
         </div>
       </div>
     );

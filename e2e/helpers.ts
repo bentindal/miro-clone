@@ -14,10 +14,10 @@ export interface BoardCtx {
 }
 
 /**
- * Open a board and return the canvas geometry. With no URL a fresh board is
- * created on the sync server; pass a share link to join an existing one.
+ * Open a board and return the canvas geometry. With no URL (`/new`) a fresh
+ * board is created on the sync server; pass a share link to join an existing one.
  */
-export async function openBoard(page: Page, url = '/'): Promise<BoardCtx> {
+export async function openBoard(page: Page, url = '/new'): Promise<BoardCtx> {
   await page.goto(url);
   const canvas = page.getByTestId('canvas');
   await expect(canvas).toBeVisible();

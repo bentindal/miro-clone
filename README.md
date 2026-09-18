@@ -88,8 +88,9 @@ Object storage; idle boards hibernate.
 2. App. In the Vercel project, Settings, Environment Variables, add
    `VITE_SYNC_URL` = the Worker URL (Production, and Preview if wanted), then
    redeploy the latest production deployment. It is a build-time variable.
-3. Open the site: the header shows "Live" instead of "Local only" and Share
-   offers the two links.
+3. Open the site: New board creates one, the header shows "Live" instead of
+   "Local only", and Share offers the two links. The home page remembers the
+   boards this browser has opened.
 
 Free plan limits that matter: 100,000 requests a day across the account
 (outgoing WebSocket messages are free; incoming ones count 20:1), and no

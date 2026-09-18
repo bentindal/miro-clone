@@ -200,7 +200,12 @@ and `chromium-worker`), so every proof below holds for each.
 - [x] Runs for free. The Worker flavour fits Cloudflare's free plan with no
       card; proven by the same collaboration suite on wrangler's local Workers
       runtime (project `chromium-worker`).
-- [ ] Accounts and a board list.
+- [x] Board list. The home page lists the boards this browser has opened,
+      newest first with titles; an edit link never gets downgraded by later
+      opening the same board's view link; entries can be removed.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `boards and share links` ›
+      `the home page lists boards opened in this browser, newest first, with their titles`.
+- [ ] Accounts (a board list that follows the person, not the browser).
 - [ ] Comments anchored to objects.
 
 ## Unit coverage
