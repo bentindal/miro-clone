@@ -89,7 +89,10 @@ Single-user editing of a board in the browser. No networking yet.
 
 ### Persistence
 
-- [ ] Export the board to PNG.
+- [x] Export the board to PNG.
+      Proof: [`e2e/export-png.spec.ts`](e2e/export-png.spec.ts) › `export to PNG` ›
+      `downloads a PNG covering every object on the board`,
+      `an empty board still exports a valid image`.
 - [ ] Save the board as JSON and load it back, preserving every object.
 ### Performance
 
