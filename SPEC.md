@@ -64,7 +64,10 @@ Single-user editing of a board in the browser. No networking yet.
       `dragging on empty board selects everything fully inside; shift-click toggles`,
       `a marquee with shift adds to the existing selection`,
       `moving a multi-selection moves every member`.
-- [ ] Group and ungroup. Grouped objects select and move as one.
+- [x] Group and ungroup. Grouped objects select and move as one.
+      Proof: [`e2e/group.spec.ts`](e2e/group.spec.ts) › `group and ungroup` ›
+      `grouped objects select and move as one, ungroup restores them`,
+      `groups nest and the toolbar buttons work too`.
 - [ ] Resize and rotate handles on the selection.
 - [ ] Copy and paste, including groups and connectors between copied shapes.
 - [ ] Z-order: bring forward, send backward, bring to front, send to back.
