@@ -200,8 +200,20 @@ and `chromium-worker`), so every proof below holds for each.
 - [x] Runs for free. The Worker flavour fits Cloudflare's free plan with no
       card; proven by the same collaboration suite on wrangler's local Workers
       runtime (project `chromium-worker`).
-- [ ] Accounts and a board list.
-- [ ] Comments anchored to objects.
+- [x] Board list. The home page lists the boards this browser has opened,
+      newest first with titles; an edit link never gets downgraded by later
+      opening the same board's view link; entries can be removed.
+      Proof: [`e2e/collab.spec.ts`](e2e/collab.spec.ts) › `boards and share links` ›
+      `the home page lists boards opened in this browser, newest first, with their titles`.
+- [ ] Accounts (a board list that follows the person, not the browser).
+- [x] Comments. Threads anchored to an object (the pin follows it) or to a
+      point on the board; replies from anyone with an edit link; resolve and
+      reopen; shared live and stored with the board. Viewers can read but not
+      post, since their writes never reach the document.
+      Proof: [`e2e/comments.spec.ts`](e2e/comments.spec.ts) › `comments` ›
+      `a comment on an object gets a pin that follows the object, and everyone sees the thread`,
+      `comments can be placed on empty board, opened from their pin, resolved and reopened`,
+      `viewers can read comments but not post them`.
 
 ## Unit coverage
 

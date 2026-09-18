@@ -15,6 +15,7 @@ const TOOL_LABELS: Record<Tool, { label: string; key: string }> = {
   pen: { label: 'Pen', key: 'P' },
   connector: { label: 'Connector', key: 'C' },
   frame: { label: 'Frame', key: 'F' },
+  comment: { label: 'Comment', key: 'M' },
 };
 
 interface ToolbarProps {
@@ -130,6 +131,16 @@ export function Toolbar({ editor, session, mode }: ToolbarProps) {
         </button>
       </div>
       <div className="toolbar-group">
+        <button
+          type="button"
+          data-action="toggle-comments"
+          className={editor.commentsOpen ? 'active' : ''}
+          aria-pressed={editor.commentsOpen}
+          onClick={() => editor.setCommentsOpen(!editor.commentsOpen)}
+          title="Comments"
+        >
+          Comments{editor.comments.openCount > 0 ? ` (${editor.comments.openCount})` : ''}
+        </button>
         <button type="button" data-action="export-png" onClick={exportPNG} title="Export PNG">
           Export PNG
         </button>

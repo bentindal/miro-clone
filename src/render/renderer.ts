@@ -10,7 +10,7 @@ import {
 } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT, Scene } from '../model/scene';
 import type { Guide } from '../model/snap';
-import type { Peer } from '../editor/Editor';
+import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
 import type { Id, Shape, StickyShape, TextShape } from '../model/types';
 
 export const HANDLE_SIZE = 8;
@@ -43,6 +43,10 @@ export interface Overlay {
   guides: Guide[];
   /** Collaborators' cursors and selections. */
   peers: Peer[];
+  /** Comment pins. */
+  pins: Pin[];
+  /** World position of a comment being composed. */
+  pendingPin: Vec | null;
   editingId: Id | null;
 }
 
@@ -225,6 +229,8 @@ export function renderBoard(
   }
   const frame = selectionFrame(scene, overlay.selection, cam);
   if (frame) drawSelectionFrame(ctx, frame);
+  for (const pin of overlay.pins) drawPin(ctx, worldToScreen(cam, pin), pin.count, pin.resolved, pin.active);
+  if (overlay.pendingPin) drawPin(ctx, worldToScreen(cam, overlay.pendingPin), 0, false, true);
   for (const peer of overlay.peers) if (peer.cursor) drawPeerCursor(ctx, worldToScreen(cam, peer.cursor), peer);
   if (overlay.marquee) {
     const tl = worldToScreen(cam, { x: overlay.marquee.x, y: overlay.marquee.y });
@@ -257,6 +263,36 @@ function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Box, cam: Camera, c
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.strokeRect(tl.x, tl.y, b.w * cam.zoom, b.h * cam.zoom);
+}
+
+function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved: boolean, active: boolean): void {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = resolved ? '#9aa0a6' : '#f9a825';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  // Teardrop: a round body up and to the right of the spot, with a tip pointing at it.
+  const cx = PIN_RADIUS * 0.6;
+  const cy = -PIN_RADIUS * 0.6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, PIN_RADIUS, Math.PI * 0.75 + 0.6, Math.PI * 0.75 - 0.6 + Math.PI * 2);
+  ctx.lineTo(0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  if (active) {
+    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(PIN_RADIUS * 0.6, -PIN_RADIUS * 0.6, PIN_RADIUS + 3, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(count > 0 ? String(count) : '+', PIN_RADIUS * 0.6, -PIN_RADIUS * 0.6);
+  ctx.restore();
 }
 
 function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer): void {

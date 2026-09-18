@@ -20,9 +20,10 @@ self-hosting.
 
 What is still thin:
 
-- **No accounts.** Links are the only credentials; there is no board list, no
-  way to revoke a link, and no per-user roles beyond edit and view.
-- **No comments.**
+- **No accounts.** Links are the only credentials; the board list is per
+  browser, links cannot be revoked, and roles stop at edit and view.
+- **Comments are edit-only.** A "comment" role would need the server to let
+  viewers write the `comments` map and nothing else.
 - **Concurrent reorders** of the z-order can briefly produce duplicate entries
   that are dropped on read; a fractional-index order would remove the case.
 - **Connector labels and connector-to-connector bends** are missing; routing
@@ -38,14 +39,15 @@ What is still thin:
 This is the real gap. Without it nothing else matters. Items marked done
 shipped in the first phase 2 PR.
 
-1. Server-side boards: autosave and a Yjs document per board on a Node sync
-   server with Postgres (done); accounts, a board list, versioned snapshots.
+1. Server-side boards: autosave and a Yjs document per board (done); a
+   per-browser board list (done); accounts, versioned snapshots.
 2. Real-time multi-user editing with Yjs and per-user undo (done).
 3. Presence: live cursors with names, remote selection highlights (done);
    follow a user.
 4. Sharing: anonymous edit and view links (done); comment role, revocation,
    board-level and workspace-level permissions once accounts exist.
-5. Comments: threads anchored to objects or positions, resolve, mentions.
+5. Comments: threads anchored to objects or positions, resolve (done);
+   mentions, a comment-only role.
 
 ## Phase 3: editing quality
 

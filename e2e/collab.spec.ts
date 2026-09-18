@@ -13,7 +13,7 @@ async function joinAs(browser: Browser, url: string, name: string): Promise<{ pa
 }
 
 test.describe('boards and share links', () => {
-  test('visiting the root creates a board and moves to its edit link', async ({ page }) => {
+  test('visiting /new creates a board and moves to its edit link', async ({ page }) => {
     await openBoard(page);
     expect(page.url()).toMatch(/\/b\/[a-f0-9]{20}#[A-Za-z0-9_-]{20,}$/);
     const info = (await syncInfo(page))!;
@@ -39,6 +39,45 @@ test.describe('boards and share links', () => {
     await expect(page.getByTestId('boot-error')).toContainText('not valid');
     await page.goto('/b/00000000000000000000#x');
     await expect(page.getByTestId('boot-error')).toContainText('does not exist');
+  });
+
+  test('the home page lists boards opened in this browser, newest first, with their titles', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('home-empty')).toBeVisible();
+    await page.getByTestId('new-board').click();
+    await page.waitForURL(/\/b\//);
+    await openBoard(page, page.url());
+    const first = page.url();
+    await page.getByTestId('board-title').fill('First board');
+    await openBoard(page);
+    const second = page.url();
+    await page.getByTestId('board-title').fill('Second board');
+
+    await page.goto('/');
+    const entries = page.getByTestId('board-entry');
+    await expect(entries).toHaveCount(2);
+    await expect(entries.nth(0)).toContainText('Second board');
+    await expect(entries.nth(1)).toContainText('First board');
+    await expect(entries.nth(1).locator('a')).toHaveAttribute('href', first);
+
+    // A view link to an already-known board does not downgrade the stored edit link.
+    await page.goto(second);
+    await openBoard(page, second);
+    await page.locator('[data-action="share"]').click();
+    const viewLink = await page.getByTestId('share-view-link').inputValue();
+    await openBoard(page, viewLink);
+    await page.goto('/');
+    await expect(entries).toHaveCount(2);
+    await expect(entries.nth(0).locator('a')).toHaveAttribute('href', second);
+    await expect(entries.nth(0)).not.toContainText('View only');
+
+    // Entries can be removed; opening the board again re-adds it.
+    await entries.nth(0).getByRole('button').click();
+    await expect(entries).toHaveCount(1);
+    await expect(entries.nth(0)).toContainText('First board');
+    await entries.nth(0).locator('a').click();
+    await openBoard(page, first);
+    expect(page.url()).toBe(first);
   });
 
   test('the board title syncs and persists', async ({ page, browser }) => {
