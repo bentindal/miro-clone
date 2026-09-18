@@ -82,7 +82,11 @@ Single-user editing of a board in the browser. No networking yet.
 - [x] Z-order: bring forward, send backward, bring to front, send to back.
       Proof: [`e2e/z-order.spec.ts`](e2e/z-order.spec.ts) › `z-order` ›
       `bring forward, send backward, bring to front and send to back reorder the stack`.
-- [ ] Undo and redo across every editing operation above.
+- [x] Undo and redo across every editing operation above.
+      Proof: [`e2e/undo-redo.spec.ts`](e2e/undo-redo.spec.ts) › `undo and redo` ›
+      `every editing operation can be undone and redone in order`,
+      `a new edit after undo discards the redo branch; toolbar buttons mirror the keys`.
+
 ### Persistence
 
 - [ ] Export the board to PNG.
