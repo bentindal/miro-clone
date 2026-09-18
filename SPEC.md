@@ -79,7 +79,9 @@ Single-user editing of a board in the browser. No networking yet.
       `pastes copies offset from the originals with their content`,
       `copying a group with a connector keeps the copy wired together`,
       `cut removes the originals and paste brings them back`.
-- [ ] Z-order: bring forward, send backward, bring to front, send to back.
+- [x] Z-order: bring forward, send backward, bring to front, send to back.
+      Proof: [`e2e/z-order.spec.ts`](e2e/z-order.spec.ts) › `z-order` ›
+      `bring forward, send backward, bring to front and send to back reorder the stack`.
 - [ ] Undo and redo across every editing operation above.
 ### Persistence
 
