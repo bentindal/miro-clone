@@ -22,8 +22,11 @@ Single-user editing of a board in the browser. No networking yet.
 
 ### Objects
 
-- [ ] Sticky notes. Click with the sticky tool to place a note; double-click to
+- [x] Sticky notes. Click with the sticky tool to place a note; double-click to
       edit its text.
+      Proof: [`e2e/sticky.spec.ts`](e2e/sticky.spec.ts) › `sticky notes` ›
+      `click places a note, double-click edits its text`,
+      `each note gets a colour and several can be placed`.
 - [ ] Rectangles, ellipses and lines. Drag with the matching tool to create one.
 - [ ] Connectors. Drag from one shape to another; the connector's endpoints stay
       attached to the shapes' edges when either shape moves.
