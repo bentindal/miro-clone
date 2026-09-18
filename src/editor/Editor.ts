@@ -4,6 +4,7 @@ import {
   type Vec,
   boxCenter,
   boxFromPoints,
+  boxesIntersect,
   boundsOfPoints,
   dist,
   fitCamera,
@@ -12,6 +13,7 @@ import {
   pointInBox,
   rotatePoint,
   screenToWorld,
+  visibleWorldBox,
   zoomCameraAt,
   zoomCameraBy,
 } from '../model/geometry';
@@ -20,7 +22,10 @@ import { History } from '../model/history';
 import { Scene, type SceneSnapshot } from '../model/scene';
 import { type BoardFile, deserializeScene, serializeScene } from '../model/serialize';
 import {
+  type Anchor,
   type BoxedShape,
+  type ConnectorShape,
+  type ConnectorStyle,
   type FrameShape,
   type Id,
   type Shape,
@@ -41,6 +46,7 @@ import {
   renderToCanvas,
   selectionFrame,
 } from '../render/renderer';
+import { type AlignKind, type Guide, alignDeltas, computeSnap, distributeDeltas } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 
 export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame';
@@ -63,7 +69,7 @@ type Drag =
   | { kind: 'rotate'; center: Vec; startAngle: number; ids: Id[]; snap: SceneSnapshot; startRotation: number }
   | { kind: 'create'; type: 'rect' | 'ellipse' | 'frame' | 'line'; start: Vec; current: Vec }
   | { kind: 'pen'; points: Vec[] }
-  | { kind: 'connector'; startId: Id | null; start: Vec; current: Vec; endId: Id | null };
+  | { kind: 'connector'; startId: Id | null; startAnchor: Anchor; start: Vec; current: Vec; endId: Id | null; endAnchor: Anchor };
 
 export interface EditingState {
   id: Id;
@@ -73,6 +79,11 @@ export interface EditingState {
 }
 
 const DRAG_THRESHOLD = 3;
+/** Screen-pixel distance within which a moved object snaps to a neighbour. */
+const SNAP_THRESHOLD = 6;
+export const GRID_SIZE = 20;
+/** Screen-pixel radius within which a connector end snaps to a side anchor. */
+const ANCHOR_SNAP = 12;
 const STICKY_SIZE = 120;
 const STICKY_COLORS = ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1'];
 const SHAPE_FILL = '#ffffff';
@@ -89,9 +100,16 @@ export class Editor {
   viewport = { w: 1, h: 1 };
   spaceHeld = false;
   clipboard: Shape[] | null = null;
+  /** Style applied to newly drawn connectors. */
+  connectorStyle: ConnectorStyle = 'straight';
+  /** Snap moved objects to a grid when no neighbouring edge is close. */
+  gridSnap = false;
+  /** Guide lines from the current snap, drawn while moving. */
+  guides: Guide[] = [];
   lastRenderStats: RenderStats = { drawn: 0, culled: 0 };
   lastRenderMs = 0;
   private drag: Drag | null = null;
+  private pinch: { center: Vec; span: number } | null = null;
   private txSnap: SceneSnapshot | null = null;
   private listeners = new Set<() => void>();
   private version = 0;
@@ -108,6 +126,11 @@ export class Editor {
 
   getVersion(): number {
     return this.version;
+  }
+
+  /** True while a pointer drag (move, resize, draw, marquee, pan) is in progress. */
+  get isDragging(): boolean {
+    return this.drag !== null;
   }
 
   private notify(): void {
@@ -169,8 +192,16 @@ export class Editor {
       selection: this.selection,
       hoverId: this.hoverId,
       marquee: d?.kind === 'marquee' && d.moved ? boxFromPoints(d.start, d.current) : null,
-      preview: d?.kind === 'create' ? this.previewShape(d) : d?.kind === 'pen' ? this.penShape(d.points, 'preview') : null,
-      previewLine: d?.kind === 'connector' ? this.connectorPreview(d) : null,
+      preview:
+        d?.kind === 'create'
+          ? this.previewShape(d)
+          : d?.kind === 'pen'
+            ? this.penShape(d.points, 'preview')
+            : d?.kind === 'connector'
+              ? this.connectorPreview(d)
+              : null,
+      anchorTargetId: d?.kind === 'connector' ? (d.endId ?? (dist(d.start, d.current) * this.camera.zoom < DRAG_THRESHOLD ? d.startId : null)) : null,
+      guides: this.guides,
       editingId: this.editing?.id ?? null,
     };
   }
@@ -265,6 +296,39 @@ export class Editor {
     return screenToWorld(this.camera, p);
   }
 
+  // ---- two-finger gestures -----------------------------------------------
+
+  /** True while a two-finger pan/pinch gesture is in progress. */
+  get isPinching(): boolean {
+    return this.pinch !== null;
+  }
+
+  /** Start a two-finger gesture from two screen points. Cancels any single-pointer drag. */
+  beginPinch(a: Vec, b: Vec): void {
+    this.cancelDrag();
+    this.pinch = { center: midpoint(a, b), span: Math.max(dist(a, b), 1) };
+    this.notify();
+  }
+
+  /** Update a two-finger gesture: pan by the centroid's movement, zoom by the change in finger distance. */
+  updatePinch(a: Vec, b: Vec): void {
+    const g = this.pinch;
+    if (!g) return;
+    const center = midpoint(a, b);
+    const span = Math.max(dist(a, b), 1);
+    let cam = panCamera(this.camera, center.x - g.center.x, center.y - g.center.y);
+    cam = zoomCameraBy(cam, span / g.span, center);
+    g.center = center;
+    g.span = span;
+    this.setCamera(cam);
+  }
+
+  endPinch(): void {
+    if (!this.pinch) return;
+    this.pinch = null;
+    this.notify();
+  }
+
   // ---- selection & tools -------------------------------------------------
 
   setTool(tool: Tool): void {
@@ -286,6 +350,52 @@ export class Editor {
   clearSelection(): void {
     this.selection = [];
     this.notify();
+  }
+
+  /** Top-level selectable ids in z-order (groups collapse to one entry). */
+  selectables(): Id[] {
+    return this.scene.normalizeSelection(this.scene.all().filter((s) => s.type !== 'group').map((s) => s.id));
+  }
+
+  /**
+   * Move the selection to the next (or previous) object in z-order.
+   * Returns false when the cycle would wrap, so the caller can let keyboard
+   * focus leave the canvas instead.
+   */
+  selectNext(direction: 1 | -1): boolean {
+    const items = this.selectables();
+    if (items.length === 0) return false;
+    const current = this.selection.length === 1 ? items.indexOf(this.selection[0]) : -1;
+    let next: number;
+    if (current === -1) next = direction === 1 ? 0 : items.length - 1;
+    else {
+      next = current + direction;
+      if (next < 0 || next >= items.length) return false;
+    }
+    this.select([items[next]]);
+    return true;
+  }
+
+  /** Open the text editor for a single selected text-bearing object or frame. Returns true if it did. */
+  activateSelection(): boolean {
+    if (this.selection.length !== 1) return false;
+    const s = this.scene.get(this.selection[0]);
+    if (!s || !(hasText(s) || s.type === 'frame')) return false;
+    this.startEditing(s.id, false);
+    return true;
+  }
+
+  /** Short human description of the current selection for assistive technology. */
+  describeSelection(): string {
+    if (this.editing) return 'Editing text';
+    const items = this.selectables();
+    if (this.selection.length === 0) return items.length === 0 ? 'Empty board' : `Nothing selected, ${items.length} objects`;
+    if (this.selection.length > 1) return `${this.selection.length} objects selected`;
+    const id = this.selection[0];
+    const s = this.scene.get(id);
+    if (!s) return 'Nothing selected';
+    const index = items.indexOf(id) + 1;
+    return `Selected ${describeShape(s)}, ${index} of ${items.length}`;
   }
 
   get selectionFrame(): SelectionFrame | null {
@@ -343,7 +453,8 @@ export class Editor {
       case 'connector': {
         const hit = hitTest(this.scene, world, 4 / this.camera.zoom);
         const startId = hit && hit.type !== 'connector' ? hit.id : null;
-        this.drag = { kind: 'connector', startId, start: world, current: world, endId: null };
+        const startAnchor = hit && startId ? (this.scene.nearestAnchor(hit, world, ANCHOR_SNAP / this.camera.zoom) ?? 'auto') : 'auto';
+        this.drag = { kind: 'connector', startId, startAnchor, start: world, current: world, endId: null, endAnchor: 'auto' };
         break;
       }
       case 'sticky':
@@ -423,6 +534,13 @@ export class Editor {
           if (Math.abs(dx) > Math.abs(dy)) dy = 0;
           else dx = 0;
         }
+        this.guides = [];
+        if (!mods.alt) {
+          const snap = this.snapMove(d.ids, dx, dy);
+          dx += snap.dx;
+          dy += snap.dy;
+          this.guides = snap.guides;
+        }
         this.scene.translate(d.ids, dx, dy);
         break;
       }
@@ -452,6 +570,7 @@ export class Editor {
         d.current = world;
         const hit = hitTest(this.scene, world, 4 / this.camera.zoom);
         d.endId = hit && hit.type !== 'connector' && hit.id !== d.startId ? hit.id : null;
+        d.endAnchor = hit && d.endId ? (this.scene.nearestAnchor(hit, world, ANCHOR_SNAP / this.camera.zoom) ?? 'auto') : 'auto';
         break;
       }
     }
@@ -470,6 +589,7 @@ export class Editor {
         if (!d.moved && !d.additive) this.selection = [];
         break;
       case 'move':
+        this.guides = [];
         if (d.moved) {
           this.assignFrames(d.ids);
           this.endTx();
@@ -512,6 +632,7 @@ export class Editor {
 
   cancelDrag(): void {
     const d = this.drag;
+    this.guides = [];
     if (!d) return;
     if ((d.kind === 'move' || d.kind === 'resize' || d.kind === 'rotate') && d.snap) this.scene.restore(d.snap);
     this.txSnap = null;
@@ -531,13 +652,22 @@ export class Editor {
     const base = { id, parentId: null, x: box.x, y: box.y, w: box.w, h: box.h, rotation: 0 };
     switch (type) {
       case 'rect':
-        return { type, ...base, fill: SHAPE_FILL, stroke: SHAPE_STROKE };
+        return { type, ...base, fill: SHAPE_FILL, stroke: SHAPE_STROKE, strokeWidth: 2 };
       case 'ellipse':
-        return { type, ...base, fill: SHAPE_FILL, stroke: SHAPE_STROKE };
+        return { type, ...base, fill: SHAPE_FILL, stroke: SHAPE_STROKE, strokeWidth: 2 };
       case 'frame':
         return { type, ...base, title: 'Frame' };
       case 'line':
-        return { type, ...base, stroke: SHAPE_STROKE, points: [{ x: a.x - box.x, y: a.y - box.y }, { x: b.x - box.x, y: b.y - box.y }] };
+        return {
+          type,
+          ...base,
+          stroke: SHAPE_STROKE,
+          strokeWidth: 2,
+          points: [
+            { x: a.x - box.x, y: a.y - box.y },
+            { x: b.x - box.x, y: b.y - box.y },
+          ],
+        };
     }
   }
 
@@ -587,29 +717,30 @@ export class Editor {
     };
   }
 
-  private connectorPreview(d: Extract<Drag, { kind: 'connector' }>): { a: Vec; b: Vec } | null {
+  private connectorFromDrag(d: Extract<Drag, { kind: 'connector' }>, end: Vec, id: Id): ConnectorShape {
+    return {
+      type: 'connector',
+      id,
+      parentId: null,
+      stroke: SHAPE_STROKE,
+      strokeWidth: 2,
+      style: this.connectorStyle,
+      start: { shapeId: d.startId, point: d.start, anchor: d.startId ? d.startAnchor : 'auto' },
+      end: { shapeId: d.endId, point: end, anchor: d.endId ? d.endAnchor : 'auto' },
+    };
+  }
+
+  private connectorPreview(d: Extract<Drag, { kind: 'connector' }>): ConnectorShape | null {
     if (dist(d.start, d.current) * this.camera.zoom < DRAG_THRESHOLD) return null;
-    const startShape = d.startId ? this.scene.get(d.startId) : undefined;
-    const endShape = d.endId ? this.scene.get(d.endId) : undefined;
-    const endTarget = endShape ? boxCenter(this.scene.boundsOfShape(endShape)) : d.current;
-    const a = startShape ? this.scene.edgePoint(startShape, endTarget) : d.start;
-    const b = endShape ? this.scene.edgePoint(endShape, startShape ? boxCenter(this.scene.boundsOfShape(startShape)) : d.start) : d.current;
-    return { a, b };
+    return this.connectorFromDrag(d, d.current, 'preview');
   }
 
   private commitConnector(d: Extract<Drag, { kind: 'connector' }>, world: Vec): void {
     if (dist(d.start, world) * this.camera.zoom < DRAG_THRESHOLD) return;
     this.transact(() => {
-      const id = newId('connector');
-      this.scene.add({
-        type: 'connector',
-        id,
-        parentId: null,
-        stroke: SHAPE_STROKE,
-        start: { shapeId: d.startId, point: d.start },
-        end: { shapeId: d.endId, point: world },
-      });
-      this.selection = [id];
+      const c = this.connectorFromDrag(d, world, newId('connector'));
+      this.scene.add(c);
+      this.selection = [c.id];
     });
     this.tool = 'select';
   }
@@ -699,6 +830,49 @@ export class Editor {
   }
 
   // ---- editing commands --------------------------------------------------
+
+  /**
+   * Apply style properties to every leaf in the selection that supports them.
+   * One undo step for the whole selection.
+   */
+  setStyle(patch: StylePatch): void {
+    const leaves = new Set<Id>();
+    for (const id of this.selection) for (const leaf of this.scene.leaves(id)) leaves.add(leaf);
+    if (leaves.size === 0) return;
+    if (patch.connectorStyle) this.connectorStyle = patch.connectorStyle;
+    this.transact(() => {
+      for (const id of leaves) {
+        const s = this.scene.mustGet(id);
+        switch (s.type) {
+          case 'rect':
+          case 'ellipse':
+            this.scene.update<typeof s>(id, pick(patch, ['fill', 'stroke', 'strokeWidth']));
+            break;
+          case 'sticky':
+            this.scene.update<StickyShape>(id, pick(patch, ['fill']));
+            break;
+          case 'line':
+          case 'pen':
+            this.scene.update<typeof s>(id, pick(patch, ['stroke', 'strokeWidth']));
+            break;
+          case 'text':
+            this.scene.update<TextShape>(id, pick(patch, ['fontSize', 'color']));
+            break;
+          case 'connector': {
+            const next: Partial<ConnectorShape> = pick(patch, ['stroke', 'strokeWidth']);
+            if (patch.connectorStyle) next.style = patch.connectorStyle;
+            if (patch.startAnchor) next.start = { ...s.start, anchor: patch.startAnchor };
+            if (patch.endAnchor) next.end = { ...s.end, anchor: patch.endAnchor };
+            this.scene.update(id, next);
+            break;
+          }
+          case 'frame':
+          case 'group':
+            break;
+        }
+      }
+    });
+  }
 
   deleteSelection(): void {
     if (this.selection.length === 0) return;
@@ -790,6 +964,57 @@ export class Editor {
 
   sendBackward(): void {
     this.transact(() => this.scene.sendBackward(this.selection));
+  }
+
+  /**
+   * Snap correction for moving `ids` by (dx, dy): compares the moved bounds
+   * against every other object near the viewport.
+   */
+  private snapMove(ids: Id[], dx: number, dy: number): { dx: number; dy: number; guides: Guide[] } {
+    const moving = new Set<Id>();
+    for (const id of ids) {
+      moving.add(id);
+      for (const d of this.scene.descendants(id)) moving.add(d);
+    }
+    const b = this.scene.boundsOfMany(ids);
+    const movedBox = { x: b.x + dx, y: b.y + dy, w: b.w, h: b.h };
+    const view = visibleWorldBox(this.camera, this.viewport.w, this.viewport.h);
+    const margin = Math.max(view.w, view.h);
+    const region = { x: view.x - margin, y: view.y - margin, w: view.w + 2 * margin, h: view.h + 2 * margin };
+    const others: Box[] = [];
+    for (const s of this.scene.all()) {
+      if (moving.has(s.id) || s.type === 'group' || s.type === 'connector') continue;
+      const sb = this.scene.boundsOfShape(s);
+      if (boxesIntersect(sb, region)) others.push(sb);
+    }
+    return computeSnap(movedBox, others, SNAP_THRESHOLD / this.camera.zoom, this.gridSnap ? GRID_SIZE : null);
+  }
+
+  setGridSnap(on: boolean): void {
+    this.gridSnap = on;
+    this.notify();
+  }
+
+  /** Align the selected top-level objects on an edge or centre of their union. */
+  align(kind: AlignKind): void {
+    const ids = this.scene.normalizeSelection(this.selection);
+    if (ids.length < 2) return;
+    const deltas = alignDeltas(ids.map((id) => this.scene.bounds(id)), kind);
+    this.transact(() => {
+      ids.forEach((id, i) => this.scene.translate([id], deltas[i].dx, deltas[i].dy));
+      this.assignFrames(ids);
+    });
+  }
+
+  /** Space the selected top-level objects evenly along an axis. */
+  distribute(axis: 'x' | 'y'): void {
+    const ids = this.scene.normalizeSelection(this.selection);
+    if (ids.length < 3) return;
+    const deltas = distributeDeltas(ids.map((id) => this.scene.bounds(id)), axis);
+    this.transact(() => {
+      ids.forEach((id, i) => this.scene.translate([id], deltas[i].dx, deltas[i].dy));
+      this.assignFrames(ids);
+    });
   }
 
   /** Re-parent moved top-level shapes into whichever frame now contains their centre. */
@@ -968,6 +1193,10 @@ export class Editor {
       this.zoomToFit();
       return true;
     }
+    if (k === 'g' && !mods.alt) {
+      this.setGridSnap(!this.gridSnap);
+      return true;
+    }
     const toolKeys: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', l: 'line', n: 'sticky', t: 'text', p: 'pen', c: 'connector', f: 'frame' };
     if (k in toolKeys && !mods.alt) {
       this.setTool(toolKeys[k]);
@@ -1000,6 +1229,49 @@ export class Editor {
   exportPNGCanvas(scale = 1): HTMLCanvasElement {
     return renderToCanvas(this.scene, boardBounds(this.scene), scale);
   }
+}
+
+export interface StylePatch {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  fontSize?: number;
+  color?: string;
+  connectorStyle?: ConnectorStyle;
+  startAnchor?: Anchor;
+  endAnchor?: Anchor;
+}
+
+function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
+  return out;
+}
+
+const TYPE_LABELS: Record<Shape['type'], string> = {
+  rect: 'rectangle',
+  ellipse: 'ellipse',
+  line: 'line',
+  pen: 'pen stroke',
+  sticky: 'sticky note',
+  text: 'text',
+  frame: 'frame',
+  group: 'group',
+  connector: 'connector',
+};
+
+function describeShape(s: Shape): string {
+  const label = TYPE_LABELS[s.type];
+  if (s.type === 'sticky' || s.type === 'text') {
+    const text = s.text.trim().replace(/\s+/g, ' ');
+    return text ? `${label} "${text.length > 40 ? `${text.slice(0, 40)}…` : text}"` : `empty ${label}`;
+  }
+  if (s.type === 'frame') return `frame "${s.title}"`;
+  return label;
+}
+
+function midpoint(a: Vec, b: Vec): Vec {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 function sceneChanged(a: SceneSnapshot, b: SceneSnapshot): boolean {

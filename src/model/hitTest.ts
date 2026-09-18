@@ -16,8 +16,11 @@ export function hitShape(scene: Scene, s: Shape, p: Vec, tolerance: number): boo
     case 'group':
       return false;
     case 'connector': {
-      const { a, b } = scene.connectorPoints(s);
-      return distToSegment(p, a, b) <= tolerance + 2;
+      const pts = scene.connectorGeometry(s).points;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        if (distToSegment(p, pts[i], pts[i + 1]) <= tolerance + s.strokeWidth / 2 + 1) return true;
+      }
+      return false;
     }
     case 'rect':
     case 'sticky':
@@ -39,7 +42,7 @@ export function hitShape(scene: Scene, s: Shape, p: Vec, tolerance: number): boo
     case 'pen': {
       const c = boxCenter(s);
       const local = rotatePoint(p, c, -s.rotation);
-      const width = s.type === 'pen' ? s.strokeWidth : 2;
+      const width = s.strokeWidth;
       const pts = s.points;
       if (pts.length === 1) {
         return Math.hypot(local.x - (s.x + pts[0].x), local.y - (s.y + pts[0].y)) <= tolerance + width;

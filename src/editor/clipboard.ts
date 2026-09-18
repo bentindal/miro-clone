@@ -32,8 +32,8 @@ export function pasteShapes(scene: Scene, source: Scene, shapes: Shape[], dx: nu
       const resolved = source.has(s.id) ? source.connectorPoints(s) : { a: s.start.point, b: s.end.point };
       const mapEnd = (end: typeof s.start, fallback: { x: number; y: number }) =>
         end.shapeId !== null && idMap.has(end.shapeId)
-          ? { shapeId: idMap.get(end.shapeId)!, point: { ...end.point } }
-          : { shapeId: null, point: { x: fallback.x + dx, y: fallback.y + dy } };
+          ? { shapeId: idMap.get(end.shapeId)!, point: { ...end.point }, anchor: end.anchor }
+          : { shapeId: null, point: { x: fallback.x + dx, y: fallback.y + dy }, anchor: 'auto' as const };
       copy = { ...s, id, parentId, start: mapEnd(s.start, resolved.a), end: mapEnd(s.end, resolved.b) };
     } else copy = { ...s, id, parentId, x: s.x + dx, y: s.y + dy };
     scene.add(copy);

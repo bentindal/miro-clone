@@ -1,5 +1,5 @@
 import { Scene } from './scene';
-import type { Id, Shape } from './types';
+import { ANCHORS, CONNECTOR_STYLES, type Anchor, type ConnectorStyle, type Id, type Shape } from './types';
 
 export const BOARD_FORMAT_VERSION = 1;
 
@@ -66,6 +66,18 @@ function optStr(v: unknown, fallback: string): string {
   return typeof v === 'string' ? v : fallback;
 }
 
+function optNum(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+function anchor(v: unknown): Anchor {
+  return typeof v === 'string' && (ANCHORS as string[]).includes(v) ? (v as Anchor) : 'auto';
+}
+
+function connectorStyle(v: unknown): ConnectorStyle {
+  return typeof v === 'string' && (CONNECTOR_STYLES as string[]).includes(v) ? (v as ConnectorStyle) : 'straight';
+}
+
 function point(v: unknown, name: string): { x: number; y: number } {
   if (!isRecord(v)) throw new Error(`Invalid point for ${name}`);
   return { x: num(v.x, `${name}.x`), y: num(v.y, `${name}.y`) };
@@ -93,6 +105,7 @@ function connectorEnd(v: unknown, name: string) {
   return {
     shapeId: v.shapeId === null || v.shapeId === undefined ? null : str(v.shapeId, `${name}.shapeId`),
     point: point(v.point, `${name}.point`),
+    anchor: anchor(v.anchor),
   };
 }
 
@@ -102,7 +115,13 @@ export function validateShape(raw: unknown): Shape {
   switch (type) {
     case 'rect':
     case 'ellipse':
-      return { type, ...boxed(raw), fill: optStr(raw.fill, '#ffffff'), stroke: optStr(raw.stroke, '#222222') };
+      return {
+        type,
+        ...boxed(raw),
+        fill: optStr(raw.fill, '#ffffff'),
+        stroke: optStr(raw.stroke, '#222222'),
+        strokeWidth: optNum(raw.strokeWidth, 2),
+      };
     case 'line': {
       const pts = raw.points;
       if (!Array.isArray(pts) || pts.length !== 2) throw new Error('Line needs two points');
@@ -110,6 +129,7 @@ export function validateShape(raw: unknown): Shape {
         type,
         ...boxed(raw),
         stroke: optStr(raw.stroke, '#222222'),
+        strokeWidth: optNum(raw.strokeWidth, 2),
         points: [point(pts[0], 'points[0]'), point(pts[1], 'points[1]')],
       };
     }
@@ -120,7 +140,7 @@ export function validateShape(raw: unknown): Shape {
         type,
         ...boxed(raw),
         stroke: optStr(raw.stroke, '#222222'),
-        strokeWidth: typeof raw.strokeWidth === 'number' ? raw.strokeWidth : 3,
+        strokeWidth: optNum(raw.strokeWidth, 3),
         points: pts.map((p, i) => point(p, `points[${i}]`)),
       };
     }
@@ -131,7 +151,7 @@ export function validateShape(raw: unknown): Shape {
         type,
         ...boxed(raw),
         text: optStr(raw.text, ''),
-        fontSize: typeof raw.fontSize === 'number' ? raw.fontSize : 18,
+        fontSize: optNum(raw.fontSize, 18),
         color: optStr(raw.color, '#222222'),
       };
     case 'frame':
@@ -146,6 +166,8 @@ export function validateShape(raw: unknown): Shape {
         start: connectorEnd(raw.start, 'start'),
         end: connectorEnd(raw.end, 'end'),
         stroke: optStr(raw.stroke, '#222222'),
+        strokeWidth: optNum(raw.strokeWidth, 2),
+        style: connectorStyle(raw.style),
       };
     default:
       throw new Error(`Unknown shape type ${String(type)}`);

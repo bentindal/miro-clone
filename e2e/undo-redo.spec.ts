@@ -67,7 +67,8 @@ test.describe('undo and redo', () => {
     // 11. group rect + sticky
     await selectTool(page, 'select');
     await click(ctx, { x: 300, y: 300 });
-    await click(ctx, { x: 600, y: 150 }, { shift: true });
+    // Click the sticky's lower half: the property bar floats above the selected rectangle.
+    await click(ctx, { x: 600, y: 200 }, { shift: true });
     await page.keyboard.press('Control+g');
     expect(await shapesOf(page, 'group')).toHaveLength(1);
     await record();

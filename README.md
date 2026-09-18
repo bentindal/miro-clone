@@ -2,7 +2,7 @@
 
 An infinite collaborative whiteboard. Phase 1 (single-user canvas core) is
 specified and tracked in [SPEC.md](SPEC.md); every ticked item links to the
-Playwright test that proves it.
+Playwright test that proves it. What comes next is in [ROADMAP.md](ROADMAP.md).
 
 ## Stack
 
@@ -54,10 +54,15 @@ e2e           Playwright specs, one file per SPEC.md item
 | V H R O L N T P C F | Select, hand, rectangle, ellipse, line, sticky, text, pen, connector, frame |
 | Wheel / Ctrl+wheel | Pan / zoom (trackpad pinch) |
 | Space + drag, middle drag | Pan |
+| Two fingers (touch) | Pan and pinch zoom |
 | Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y | Undo / redo |
 | Ctrl+C / X / V / D | Copy / cut / paste / duplicate |
 | Ctrl+G / Ctrl+Shift+G | Group / ungroup |
 | ] [ } { | Bring forward, send backward, bring to front, send to back |
+| G | Toggle grid snap |
+| Alt while dragging | Disable snapping |
+| Tab / Shift+Tab (canvas focused) | Select next / previous object |
+| Enter | Edit the selected text or frame title |
 | Delete, Backspace | Delete selection |
 | Esc | Cancel drag, clear selection, back to select tool |
 | + - Ctrl+0 Shift+1 | Zoom in, out, reset, fit |

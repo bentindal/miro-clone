@@ -18,11 +18,16 @@ export function installTestHooks(editor: Editor): void {
       const s = editor.scene.get(id);
       return s && s.type === 'connector' ? editor.scene.connectorPoints(s) : null;
     },
+    connectorPath: (id: string) => {
+      const s = editor.scene.get(id);
+      return s && s.type === 'connector' ? editor.scene.connectorGeometry(s).points : null;
+    },
     load: (data: unknown) => editor.loadBoardFile(data),
     renderNow: () => editor.renderNow(),
     stats: () => ({ ...editor.lastRenderStats, ms: editor.lastRenderMs }),
     history: () => ({ undo: editor.history.undoDepth, redo: editor.history.redoDepth }),
     handles: () => editor.selectionFrame?.handles ?? null,
+    guides: () => editor.guides.map((g) => ({ ...g })),
     tool: () => editor.tool,
   };
   (window as unknown as { __wb: typeof api }).__wb = api;

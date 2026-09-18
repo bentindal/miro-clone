@@ -104,6 +104,57 @@ Single-user editing of a board in the browser. No networking yet.
       Proof: [`e2e/perf.spec.ts`](e2e/perf.spec.ts) ›
       `board with 5,000 objects pans and zooms under 16ms p95`.
 
+## Phase 1b: editing quality
+
+Closes the gaps listed in [ROADMAP.md](ROADMAP.md) under "Where it stands
+today". Same rule as phase 1: a tick needs a passing end-to-end test.
+
+- [x] Property editing. A floating bar above the selection edits fill, stroke,
+      stroke width, sticky colour, and text size and colour, for one object or
+      a multi-selection, as single undo steps. Styles persist in the board file.
+      Proof: [`e2e/properties.spec.ts`](e2e/properties.spec.ts) › `property editing` ›
+      `fill, stroke and stroke width of a selected shape can be changed and undone`,
+      `a custom colour applies through the colour input`,
+      `a multi-selection applies the change to every shape that supports it`,
+      `sticky colour and text font size have their own controls`,
+      `the bar follows the selection and hides while dragging or with nothing selected`,
+      `styles survive save and load`.
+- [x] Connector routing and anchors. Connectors are straight, elbow (orthogonal
+      with perpendicular stubs) or curved; each end attaches automatically or to
+      a fixed side. Dragging from near a side midpoint pins that side. The style
+      and anchors are editable from the property bar.
+      Proof: [`e2e/connector-routing.spec.ts`](e2e/connector-routing.spec.ts) › `connector routing and anchors` ›
+      `dragging from a side anchor pins the connector to that side`,
+      `dragging from the middle of a shape leaves the anchor automatic`,
+      `elbow and curved styles can be chosen from the property bar and are remembered for new connectors`,
+      `anchors can be changed from the property bar`.
+- [x] Snapping and alignment. Moving objects snaps to the edges and centres of
+      nearby objects with visible guides (Alt disables); optional grid snap;
+      align and distribute commands for multi-selections.
+      Proof: [`e2e/snapping.spec.ts`](e2e/snapping.spec.ts) › `snapping and alignment` ›
+      `a moved object snaps to a neighbour's edge with a guide, and lands exactly aligned`,
+      `centres and opposite edges snap too; holding Alt disables snapping`,
+      `grid snap rounds positions to the grid when no neighbour is close`,
+      `align and distribute commands arrange a multi-selection and undo as one step each`,
+      `distribute needs three objects; align needs two`.
+- [x] Touch input. Two-finger pan and pinch zoom on touch screens; single
+      finger draws and drags as the mouse does; a second finger cancels a
+      single-finger drag.
+      Proof: [`e2e/touch.spec.ts`](e2e/touch.spec.ts) › `touch input` ›
+      `two fingers moving together pan the board`,
+      `spreading two fingers zooms in around their midpoint; pinching zooms out`,
+      `a single finger draws and drags like the mouse`,
+      `a second finger landing mid-drag cancels the drag and turns it into a pan`.
+- [x] Accessibility. The canvas is a labelled, focusable application region;
+      Tab and Shift+Tab cycle objects (leaving the canvas at either end), Enter
+      edits the selected text, selection changes are announced through a live
+      region, and every control has an accessible name.
+      Proof: [`e2e/accessibility.spec.ts`](e2e/accessibility.spec.ts) › `accessibility` ›
+      `the canvas is a labelled, focusable application region`,
+      `Tab and Shift+Tab cycle the selection through objects and announce them`,
+      `Enter edits the selected note from the keyboard and the edit is announced`,
+      `every control has an accessible name and the tool buttons expose their shortcuts`.
+
 ## Unit coverage
 
 The model underneath is covered by Vitest (`pnpm test`):
@@ -113,6 +164,8 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Transform maths (pan, zoom, rotate, resize): `src/model/__tests__/geometry.test.ts`
 - Undo/redo stack: `src/model/__tests__/history.test.ts`
 - Serialisation round trip: `src/model/__tests__/serialize.test.ts`
+- Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
+- Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
 
 ## Phase 2: collaboration (out of scope for now)
 

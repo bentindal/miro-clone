@@ -57,6 +57,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
             data-tool={tool}
             className={editor.tool === tool ? 'active' : ''}
             title={`${TOOL_LABELS[tool].label} (${TOOL_LABELS[tool].key})`}
+            aria-keyshortcuts={TOOL_LABELS[tool].key}
             aria-pressed={editor.tool === tool}
             onClick={() => editor.setTool(tool)}
           >
@@ -94,17 +95,27 @@ export function Toolbar({ editor }: { editor: Editor }) {
         </button>
       </div>
       <div className="toolbar-group">
-        <button type="button" data-action="zoom-out" onClick={() => editor.zoomBy(0.8)} title="Zoom out (-)">
+        <button type="button" data-action="zoom-out" aria-label="Zoom out" onClick={() => editor.zoomBy(0.8)} title="Zoom out (-)">
           −
         </button>
-        <span className="zoom" data-testid="zoom-level">
+        <span className="zoom" data-testid="zoom-level" aria-label="Zoom level">
           {Math.round(editor.camera.zoom * 100)}%
         </span>
-        <button type="button" data-action="zoom-in" onClick={() => editor.zoomBy(1.25)} title="Zoom in (+)">
+        <button type="button" data-action="zoom-in" aria-label="Zoom in" onClick={() => editor.zoomBy(1.25)} title="Zoom in (+)">
           +
         </button>
         <button type="button" data-action="zoom-fit" onClick={() => editor.zoomToFit()} title="Zoom to fit (Shift+1)">
           Fit
+        </button>
+        <button
+          type="button"
+          data-action="toggle-grid"
+          className={editor.gridSnap ? 'active' : ''}
+          aria-pressed={editor.gridSnap}
+          onClick={() => editor.setGridSnap(!editor.gridSnap)}
+          title="Snap to grid (G)"
+        >
+          Grid
         </button>
       </div>
       <div className="toolbar-group">
@@ -119,6 +130,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
           <input
             type="file"
             accept="application/json,.json"
+            aria-label="Load board file"
             data-action="load-json"
             onChange={(e) => {
               loadJSON(e.target.files?.[0]);
