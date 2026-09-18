@@ -58,6 +58,8 @@ e2e           Playwright specs, one file per SPEC.md item
 | Ctrl+C / X / V / D | Copy / cut / paste / duplicate |
 | Ctrl+G / Ctrl+Shift+G | Group / ungroup |
 | ] [ } { | Bring forward, send backward, bring to front, send to back |
+| G | Toggle grid snap |
+| Alt while dragging | Disable snapping |
 | Delete, Backspace | Delete selection |
 | Esc | Cancel drag, clear selection, back to select tool |
 | + - Ctrl+0 Shift+1 | Zoom in, out, reset, fit |

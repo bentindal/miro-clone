@@ -9,6 +9,7 @@ import {
   worldToScreen,
 } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT, Scene } from '../model/scene';
+import type { Guide } from '../model/snap';
 import type { Id, Shape, StickyShape, TextShape } from '../model/types';
 
 export const HANDLE_SIZE = 8;
@@ -37,6 +38,8 @@ export interface Overlay {
   preview: Shape | null;
   /** Shape whose side anchors are shown while dragging a connector. */
   anchorTargetId: Id | null;
+  /** Snap guides to draw while moving. */
+  guides: Guide[];
   editingId: Id | null;
 }
 
@@ -190,6 +193,25 @@ export function renderBoard(
   }
   if (overlay.hoverId && !overlay.selection.includes(overlay.hoverId) && scene.has(overlay.hoverId)) {
     drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, 'rgba(47,111,237,0.5)', 1);
+  }
+  if (overlay.guides.length) {
+    ctx.strokeStyle = '#e91e63';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    for (const g of overlay.guides) {
+      ctx.beginPath();
+      if (g.axis === 'x') {
+        const x = Math.round(g.value * cam.zoom + cam.tx) + 0.5;
+        ctx.moveTo(x, g.from * cam.zoom + cam.ty);
+        ctx.lineTo(x, g.to * cam.zoom + cam.ty);
+      } else {
+        const y = Math.round(g.value * cam.zoom + cam.ty) + 0.5;
+        ctx.moveTo(g.from * cam.zoom + cam.tx, y);
+        ctx.lineTo(g.to * cam.zoom + cam.tx, y);
+      }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
   }
   const frame = selectionFrame(scene, overlay.selection, cam);
   if (frame) drawSelectionFrame(ctx, frame);

@@ -27,6 +27,7 @@ export function installTestHooks(editor: Editor): void {
     stats: () => ({ ...editor.lastRenderStats, ms: editor.lastRenderMs }),
     history: () => ({ undo: editor.history.undoDepth, redo: editor.history.redoDepth }),
     handles: () => editor.selectionFrame?.handles ?? null,
+    guides: () => editor.guides.map((g) => ({ ...g })),
     tool: () => editor.tool,
   };
   (window as unknown as { __wb: typeof api }).__wb = api;

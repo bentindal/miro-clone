@@ -4,6 +4,7 @@ import {
   type Vec,
   boxCenter,
   boxFromPoints,
+  boxesIntersect,
   boundsOfPoints,
   dist,
   fitCamera,
@@ -12,6 +13,7 @@ import {
   pointInBox,
   rotatePoint,
   screenToWorld,
+  visibleWorldBox,
   zoomCameraAt,
   zoomCameraBy,
 } from '../model/geometry';
@@ -44,6 +46,7 @@ import {
   renderToCanvas,
   selectionFrame,
 } from '../render/renderer';
+import { type AlignKind, type Guide, alignDeltas, computeSnap, distributeDeltas } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 
 export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame';
@@ -76,6 +79,9 @@ export interface EditingState {
 }
 
 const DRAG_THRESHOLD = 3;
+/** Screen-pixel distance within which a moved object snaps to a neighbour. */
+const SNAP_THRESHOLD = 6;
+export const GRID_SIZE = 20;
 /** Screen-pixel radius within which a connector end snaps to a side anchor. */
 const ANCHOR_SNAP = 12;
 const STICKY_SIZE = 120;
@@ -96,6 +102,10 @@ export class Editor {
   clipboard: Shape[] | null = null;
   /** Style applied to newly drawn connectors. */
   connectorStyle: ConnectorStyle = 'straight';
+  /** Snap moved objects to a grid when no neighbouring edge is close. */
+  gridSnap = false;
+  /** Guide lines from the current snap, drawn while moving. */
+  guides: Guide[] = [];
   lastRenderStats: RenderStats = { drawn: 0, culled: 0 };
   lastRenderMs = 0;
   private drag: Drag | null = null;
@@ -190,6 +200,7 @@ export class Editor {
               ? this.connectorPreview(d)
               : null,
       anchorTargetId: d?.kind === 'connector' ? (d.endId ?? (dist(d.start, d.current) * this.camera.zoom < DRAG_THRESHOLD ? d.startId : null)) : null,
+      guides: this.guides,
       editingId: this.editing?.id ?? null,
     };
   }
@@ -443,6 +454,13 @@ export class Editor {
           if (Math.abs(dx) > Math.abs(dy)) dy = 0;
           else dx = 0;
         }
+        this.guides = [];
+        if (!mods.alt) {
+          const snap = this.snapMove(d.ids, dx, dy);
+          dx += snap.dx;
+          dy += snap.dy;
+          this.guides = snap.guides;
+        }
         this.scene.translate(d.ids, dx, dy);
         break;
       }
@@ -491,6 +509,7 @@ export class Editor {
         if (!d.moved && !d.additive) this.selection = [];
         break;
       case 'move':
+        this.guides = [];
         if (d.moved) {
           this.assignFrames(d.ids);
           this.endTx();
@@ -533,6 +552,7 @@ export class Editor {
 
   cancelDrag(): void {
     const d = this.drag;
+    this.guides = [];
     if (!d) return;
     if ((d.kind === 'move' || d.kind === 'resize' || d.kind === 'rotate') && d.snap) this.scene.restore(d.snap);
     this.txSnap = null;
@@ -866,6 +886,57 @@ export class Editor {
     this.transact(() => this.scene.sendBackward(this.selection));
   }
 
+  /**
+   * Snap correction for moving `ids` by (dx, dy): compares the moved bounds
+   * against every other object near the viewport.
+   */
+  private snapMove(ids: Id[], dx: number, dy: number): { dx: number; dy: number; guides: Guide[] } {
+    const moving = new Set<Id>();
+    for (const id of ids) {
+      moving.add(id);
+      for (const d of this.scene.descendants(id)) moving.add(d);
+    }
+    const b = this.scene.boundsOfMany(ids);
+    const movedBox = { x: b.x + dx, y: b.y + dy, w: b.w, h: b.h };
+    const view = visibleWorldBox(this.camera, this.viewport.w, this.viewport.h);
+    const margin = Math.max(view.w, view.h);
+    const region = { x: view.x - margin, y: view.y - margin, w: view.w + 2 * margin, h: view.h + 2 * margin };
+    const others: Box[] = [];
+    for (const s of this.scene.all()) {
+      if (moving.has(s.id) || s.type === 'group' || s.type === 'connector') continue;
+      const sb = this.scene.boundsOfShape(s);
+      if (boxesIntersect(sb, region)) others.push(sb);
+    }
+    return computeSnap(movedBox, others, SNAP_THRESHOLD / this.camera.zoom, this.gridSnap ? GRID_SIZE : null);
+  }
+
+  setGridSnap(on: boolean): void {
+    this.gridSnap = on;
+    this.notify();
+  }
+
+  /** Align the selected top-level objects on an edge or centre of their union. */
+  align(kind: AlignKind): void {
+    const ids = this.scene.normalizeSelection(this.selection);
+    if (ids.length < 2) return;
+    const deltas = alignDeltas(ids.map((id) => this.scene.bounds(id)), kind);
+    this.transact(() => {
+      ids.forEach((id, i) => this.scene.translate([id], deltas[i].dx, deltas[i].dy));
+      this.assignFrames(ids);
+    });
+  }
+
+  /** Space the selected top-level objects evenly along an axis. */
+  distribute(axis: 'x' | 'y'): void {
+    const ids = this.scene.normalizeSelection(this.selection);
+    if (ids.length < 3) return;
+    const deltas = distributeDeltas(ids.map((id) => this.scene.bounds(id)), axis);
+    this.transact(() => {
+      ids.forEach((id, i) => this.scene.translate([id], deltas[i].dx, deltas[i].dy));
+      this.assignFrames(ids);
+    });
+  }
+
   /** Re-parent moved top-level shapes into whichever frame now contains their centre. */
   assignFrames(ids: Iterable<Id>): void {
     const frames = this.scene.all().filter((s): s is FrameShape => s.type === 'frame');
@@ -1040,6 +1111,10 @@ export class Editor {
     }
     if (mods.shift && key === '!') {
       this.zoomToFit();
+      return true;
+    }
+    if (k === 'g' && !mods.alt) {
+      this.setGridSnap(!this.gridSnap);
       return true;
     }
     const toolKeys: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', l: 'line', n: 'sticky', t: 'text', p: 'pen', c: 'connector', f: 'frame' };

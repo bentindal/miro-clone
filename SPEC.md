@@ -128,9 +128,15 @@ today". Same rule as phase 1: a tick needs a passing end-to-end test.
       `dragging from the middle of a shape leaves the anchor automatic`,
       `elbow and curved styles can be chosen from the property bar and are remembered for new connectors`,
       `anchors can be changed from the property bar`.
-- [ ] Snapping and alignment. Moving objects snaps to the edges and centres of
-      nearby objects with visible guides; optional grid snap; align and
-      distribute commands for multi-selections.
+- [x] Snapping and alignment. Moving objects snaps to the edges and centres of
+      nearby objects with visible guides (Alt disables); optional grid snap;
+      align and distribute commands for multi-selections.
+      Proof: [`e2e/snapping.spec.ts`](e2e/snapping.spec.ts) › `snapping and alignment` ›
+      `a moved object snaps to a neighbour's edge with a guide, and lands exactly aligned`,
+      `centres and opposite edges snap too; holding Alt disables snapping`,
+      `grid snap rounds positions to the grid when no neighbour is close`,
+      `align and distribute commands arrange a multi-selection and undo as one step each`,
+      `distribute needs three objects; align needs two`.
 - [ ] Touch input. Two-finger pan and pinch zoom on touch screens; single
       finger draws and drags as the mouse does.
 - [ ] Accessibility. The canvas is focusable, objects can be cycled and
@@ -147,6 +153,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Undo/redo stack: `src/model/__tests__/history.test.ts`
 - Serialisation round trip: `src/model/__tests__/serialize.test.ts`
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
+- Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
 
 ## Phase 2: collaboration (out of scope for now)
 

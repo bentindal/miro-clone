@@ -106,6 +106,16 @@ export function Toolbar({ editor }: { editor: Editor }) {
         <button type="button" data-action="zoom-fit" onClick={() => editor.zoomToFit()} title="Zoom to fit (Shift+1)">
           Fit
         </button>
+        <button
+          type="button"
+          data-action="toggle-grid"
+          className={editor.gridSnap ? 'active' : ''}
+          aria-pressed={editor.gridSnap}
+          onClick={() => editor.setGridSnap(!editor.gridSnap)}
+          title="Snap to grid (G)"
+        >
+          Grid
+        </button>
       </div>
       <div className="toolbar-group">
         <button type="button" data-action="export-png" onClick={exportPNG} title="Export PNG">

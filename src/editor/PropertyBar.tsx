@@ -27,7 +27,10 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const strokable = leaves.filter((s) => s.type === 'rect' || s.type === 'ellipse' || s.type === 'line' || s.type === 'pen' || s.type === 'connector');
   const texts = leaves.filter((s) => s.type === 'text');
   const connectors = leaves.filter((s) => s.type === 'connector');
-  if (fillable.length + strokable.length + texts.length + connectors.length === 0) return null;
+  const topLevel = editor.scene.normalizeSelection(editor.selection);
+  const canAlign = topLevel.length >= 2;
+  const canDistribute = topLevel.length >= 3;
+  if (fillable.length + strokable.length + texts.length + connectors.length === 0 && !canAlign) return null;
 
   const onlyStickies = fillable.length > 0 && fillable.every((s) => s.type === 'sticky');
   const fillPalette = onlyStickies ? STICKY_PALETTE : PALETTE;
@@ -118,6 +121,30 @@ export function PropertyBar({ editor }: { editor: Editor }) {
             ))}
           </select>
           <input type="color" data-testid="prop-text-color" aria-label="Text colour" value={(texts[0] as { color: string }).color} onChange={(e) => apply({ color: e.target.value })} />
+        </div>
+      )}
+      {canAlign && (
+        <div className="prop-group" aria-label="Arrange">
+          {(
+            [
+              ['left', 'Align left', '⇤'],
+              ['centerX', 'Align horizontal centres', '↔'],
+              ['right', 'Align right', '⇥'],
+              ['top', 'Align top', '⤒'],
+              ['centerY', 'Align vertical centres', '↕'],
+              ['bottom', 'Align bottom', '⤓'],
+            ] as const
+          ).map(([kind, label, glyph]) => (
+            <button key={kind} type="button" aria-label={label} title={label} data-testid={`prop-align-${kind}`} onMouseDown={noFocus} onClick={() => editor.align(kind)}>
+              {glyph}
+            </button>
+          ))}
+          <button type="button" aria-label="Distribute horizontally" title="Distribute horizontally" data-testid="prop-distribute-x" disabled={!canDistribute} onMouseDown={noFocus} onClick={() => editor.distribute('x')}>
+            ⫴
+          </button>
+          <button type="button" aria-label="Distribute vertically" title="Distribute vertically" data-testid="prop-distribute-y" disabled={!canDistribute} onMouseDown={noFocus} onClick={() => editor.distribute('y')}>
+            ☰
+          </button>
         </div>
       )}
       {connectors.length > 0 && (
