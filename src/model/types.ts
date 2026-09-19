@@ -65,6 +65,8 @@ export interface StickyShape extends Boxed {
   type: 'sticky';
   text: string;
   fill: string;
+  /** Names of the people who voted for this note, shown as dots. */
+  votes: string[];
 }
 
 export interface TextShape extends Boxed {

@@ -2,9 +2,20 @@ import { useEffect, useRef } from 'react';
 import { worldToScreen } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT } from '../model/scene';
 import { fontFor } from '../render/renderer';
+import { STICKY_PAD, fitText } from '../model/textFit';
 import { hasText } from '../model/types';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+
+/** Text measurement off a scratch canvas, matching what the renderer measures. */
+function measureText(text: string, font: string): number {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return text.length * font.length; // no canvas: rough but non-crashing
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
+}
 
 /** A textarea positioned over the shape being edited. */
 export function TextEditorOverlay({ editor }: { editor: Editor }) {
@@ -50,12 +61,12 @@ export function TextEditorOverlay({ editor }: { editor: Editor }) {
     );
   }
   const isFrame = shape.type === 'frame';
-  const pad = shape.type === 'sticky' ? 10 : 0;
+  const pad = shape.type === 'sticky' ? STICKY_PAD : 0;
   const top = isFrame ? shape.y - FRAME_TITLE_HEIGHT : shape.y;
   const tl = worldToScreen(cam, { x: shape.x, y: top });
   const w = shape.w * cam.zoom;
   const h = (isFrame ? FRAME_TITLE_HEIGHT : shape.h) * cam.zoom;
-  const size = shape.type === 'frame' ? 14 : fontFor(shape).size;
+  const size = shape.type === 'frame' ? 14 : shape.type === 'sticky' ? fitText(shape.text, shape.w, shape.h, STICKY_PAD, measureText).size : fontFor(shape).size;
   const center = { x: tl.x + w / 2, y: tl.y + h / 2 };
   return (
     <textarea

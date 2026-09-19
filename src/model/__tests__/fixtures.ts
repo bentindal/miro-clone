@@ -9,7 +9,7 @@ export function ellipse(id: string, x: number, y: number, w: number, h: number, 
 }
 
 export function sticky(id: string, x: number, y: number, text = ''): StickyShape {
-  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0' };
+  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0', votes: [] };
 }
 
 export function pen(id: string, x: number, y: number, points: { x: number; y: number }[]): PenShape {

@@ -12,6 +12,8 @@ import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '
 import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
 import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
+import { type FitResult, STICKY_PAD, fitText } from '../model/textFit';
+import { type CanvasTheme, LIGHT_CANVAS_THEME } from './theme';
 
 export const HANDLE_SIZE = 8;
 /** Below this zoom, same-style shapes are merged into shared paths. */
@@ -19,7 +21,6 @@ export const BATCH_ZOOM = 0.3;
 /** Largest number of shapes merged into one path; very large paths rasterise slowly. */
 export const BATCH_LIMIT = 24;
 export const ROTATE_HANDLE_OFFSET = 28;
-export const SELECTION_COLOR = '#2f6fed';
 
 export type HandleName = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
 
@@ -58,13 +59,25 @@ export interface RenderStats {
 }
 
 const wrapCache = new WeakMap<Shape, { width: number; font: string; lines: string[] }>();
+const fitCache = new WeakMap<StickyShape, FitResult>();
 
-export function fontFor(s: StickyShape | TextShape): { size: number; font: string } {
-  const size = s.type === 'text' ? s.fontSize : 16;
-  return { size, font: `${size}px system-ui, sans-serif` };
+export function fontFor(s: TextShape): { size: number; font: string } {
+  return { size: s.fontSize, font: `${s.fontSize}px system-ui, sans-serif` };
 }
 
-function wrappedLines(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, width: number, font: string): string[] {
+/** Auto-fitted layout of a sticky note's text, cached per immutable record. */
+export function stickyFit(ctx: CanvasRenderingContext2D, s: StickyShape): FitResult {
+  const cached = fitCache.get(s);
+  if (cached) return cached;
+  const fit = fitText(s.text, s.w, s.h, STICKY_PAD, (text, font) => {
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  });
+  fitCache.set(s, fit);
+  return fit;
+}
+
+function wrappedLines(ctx: CanvasRenderingContext2D, s: TextShape, width: number, font: string): string[] {
   const cached = wrapCache.get(s);
   if (cached && cached.width === width && cached.font === font) return cached.lines;
   ctx.font = font;
@@ -132,11 +145,12 @@ export function renderBoard(
   width: number,
   height: number,
   overlay: Overlay,
+  theme: CanvasTheme,
 ): RenderStats {
   ctx.save();
-  ctx.fillStyle = '#f4f5f7';
+  ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, height);
-  drawGrid(ctx, cam, width, height);
+  drawGrid(ctx, cam, width, height, theme);
 
   const visible = visibleWorldBox(cam, width, height);
   const stats: RenderStats = { drawn: 0, culled: 0 };
@@ -151,7 +165,7 @@ export function renderBoard(
       stats.culled++;
       continue;
     }
-    drawShape(ctx, scene, s, cam.zoom, base);
+    drawShape(ctx, scene, s, cam.zoom, theme, base);
     stats.drawn++;
   }
   if (cam.zoom < BATCH_ZOOM) {
@@ -165,7 +179,7 @@ export function renderBoard(
       }
       if (!batch.add(s)) {
         batch.flush();
-        drawShape(ctx, scene, s, cam.zoom, base);
+        drawShape(ctx, scene, s, cam.zoom, theme, base);
       }
       stats.drawn++;
     }
@@ -178,19 +192,19 @@ export function renderBoard(
         stats.culled++;
         continue;
       }
-      drawShape(ctx, scene, s, cam.zoom, base);
+      drawShape(ctx, scene, s, cam.zoom, theme, base);
       stats.drawn++;
     }
   }
-  if (overlay.preview) drawShape(ctx, scene, overlay.preview, cam.zoom, base);
+  if (overlay.preview) drawShape(ctx, scene, overlay.preview, cam.zoom, theme, base);
   ctx.restore();
 
   // Screen-space overlays.
   ctx.save();
   if (overlay.anchorTargetId && scene.has(overlay.anchorTargetId)) {
     const target = scene.mustGet(overlay.anchorTargetId);
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.fillStyle = theme.surface;
+    ctx.strokeStyle = theme.accent;
     ctx.lineWidth = 1.5;
     for (const anchor of ['top', 'right', 'bottom', 'left'] as const) {
       const p = worldToScreen(cam, scene.anchorPoint(target, anchor).point);
@@ -201,10 +215,10 @@ export function renderBoard(
     }
   }
   if (overlay.hoverId && !overlay.selection.includes(overlay.hoverId) && scene.has(overlay.hoverId)) {
-    drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, 'rgba(47,111,237,0.5)', 1);
+    drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, theme.hover, 1);
   }
   if (overlay.guides.length) {
-    ctx.strokeStyle = '#e91e63';
+    ctx.strokeStyle = theme.guide;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 3]);
     for (const g of overlay.guides) {
@@ -223,8 +237,8 @@ export function renderBoard(
     ctx.setLineDash([]);
   }
   if (overlay.spacingGuides.length) {
-    ctx.strokeStyle = '#e91e63';
-    ctx.fillStyle = '#e91e63';
+    ctx.strokeStyle = theme.guide;
+    ctx.fillStyle = theme.guide;
     ctx.lineWidth = 1;
     ctx.font = '11px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -270,14 +284,14 @@ export function renderBoard(
     }
   }
   const frame = selectionFrame(scene, overlay.selection, cam);
-  if (frame) drawSelectionFrame(ctx, frame);
-  for (const pin of overlay.pins) drawPin(ctx, worldToScreen(cam, pin), pin.count, pin.resolved, pin.active);
-  if (overlay.pendingPin) drawPin(ctx, worldToScreen(cam, overlay.pendingPin), 0, false, true);
-  for (const peer of overlay.peers) if (peer.cursor) drawPeerCursor(ctx, worldToScreen(cam, peer.cursor), peer);
+  if (frame) drawSelectionFrame(ctx, frame, theme);
+  for (const pin of overlay.pins) drawPin(ctx, worldToScreen(cam, pin), pin.count, pin.resolved, pin.active, theme);
+  if (overlay.pendingPin) drawPin(ctx, worldToScreen(cam, overlay.pendingPin), 0, false, true, theme);
+  for (const peer of overlay.peers) if (peer.cursor) drawPeerCursor(ctx, worldToScreen(cam, peer.cursor), peer, theme);
   if (overlay.marquee) {
     const tl = worldToScreen(cam, { x: overlay.marquee.x, y: overlay.marquee.y });
-    ctx.fillStyle = 'rgba(47,111,237,0.12)';
-    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.fillStyle = theme.accentSoft;
+    ctx.strokeStyle = theme.accent;
     ctx.lineWidth = 1;
     ctx.fillRect(tl.x, tl.y, overlay.marquee.w * cam.zoom, overlay.marquee.h * cam.zoom);
     ctx.strokeRect(tl.x, tl.y, overlay.marquee.w * cam.zoom, overlay.marquee.h * cam.zoom);
@@ -286,11 +300,11 @@ export function renderBoard(
   return stats;
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, cam: Camera, width: number, height: number): void {
+function drawGrid(ctx: CanvasRenderingContext2D, cam: Camera, width: number, height: number, theme: CanvasTheme): void {
   let step = 100 * cam.zoom;
   while (step < 24) step *= 4;
   while (step > 200) step /= 4;
-  ctx.fillStyle = '#d5d8de';
+  ctx.fillStyle = theme.grid;
   const ox = ((cam.tx % step) + step) % step;
   const oy = ((cam.ty % step) + step) % step;
   for (let x = ox; x < width; x += step) {
@@ -307,11 +321,11 @@ function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Box, cam: Camera, c
   ctx.strokeRect(tl.x, tl.y, b.w * cam.zoom, b.h * cam.zoom);
 }
 
-function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved: boolean, active: boolean): void {
+function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved: boolean, active: boolean, theme: CanvasTheme): void {
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.fillStyle = resolved ? '#9aa0a6' : '#f9a825';
-  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = resolved ? theme.pinResolved : theme.pinOpen;
+  ctx.strokeStyle = theme.surface;
   ctx.lineWidth = 2;
   // Teardrop: a round body up and to the right of the spot, with a tip pointing at it.
   const cx = PIN_RADIUS * 0.6;
@@ -323,13 +337,13 @@ function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved:
   ctx.fill();
   ctx.stroke();
   if (active) {
-    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.strokeStyle = theme.accent;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(PIN_RADIUS * 0.6, -PIN_RADIUS * 0.6, PIN_RADIUS + 3, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = theme.surface;
   ctx.font = 'bold 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -337,11 +351,11 @@ function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved:
   ctx.restore();
 }
 
-function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer): void {
+function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer, theme: CanvasTheme): void {
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.fillStyle = peer.color;
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = theme.surface;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(0, 0);
@@ -361,14 +375,14 @@ function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer): void
   ctx.beginPath();
   ctx.roundRect(12, 16, w, 18, 4);
   ctx.fill();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = theme.surface;
   ctx.fillText(peer.name, 17, 25);
   ctx.restore();
 }
 
-function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame): void {
+function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame, theme: CanvasTheme): void {
   const h = f.handles;
-  ctx.strokeStyle = SELECTION_COLOR;
+  ctx.strokeStyle = theme.accent;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(h.nw.x, h.nw.y);
@@ -381,7 +395,7 @@ function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame): v
   ctx.moveTo(h.n.x, h.n.y);
   ctx.lineTo(h.rotate.x, h.rotate.y);
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = theme.surface;
   for (const name of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const) {
     const p = h[name];
     ctx.fillRect(p.x - HANDLE_SIZE / 2, p.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
@@ -556,7 +570,7 @@ function drawArrowHead(ctx: CanvasRenderingContext2D, kind: ArrowHead, tip: Vec,
  * Draw one shape in world coordinates. `base` is the context transform to
  * restore after drawing a rotated shape; it avoids save/restore per shape.
  */
-export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape, zoom: number, base?: Matrix): void {
+export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape, zoom: number, theme: CanvasTheme, base?: Matrix): void {
   switch (s.type) {
     case 'group':
       return;
@@ -582,14 +596,14 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       drawArrowHead(ctx, s.startArrow, a, Math.atan2(a.y - afterA.y, a.x - afterA.x), size);
       if (s.label && zoom * 12 >= 4) {
         const box = connectorLabelBox(s.label, polylineMidpoint(pts));
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = theme.surface;
         ctx.strokeStyle = s.stroke;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.roundRect(box.x, box.y, box.w, box.h, 4);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#222222';
+        ctx.fillStyle = theme.text;
         ctx.font = '12px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -663,24 +677,25 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       ctx.stroke();
       break;
     case 'sticky': {
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillStyle = theme.stickyShadow;
       ctx.fillRect(s.x + 3, s.y + 4, s.w, s.h);
       ctx.fillStyle = s.fill;
       ctx.fillRect(s.x, s.y, s.w, s.h);
-      drawText(ctx, s, zoom, 10);
+      drawStickyText(ctx, s, zoom, theme);
+      drawVotes(ctx, s, zoom, theme);
       break;
     }
     case 'text':
-      drawText(ctx, s, zoom, 0);
+      drawText(ctx, s, zoom);
       break;
     case 'frame': {
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#9aa0a6';
+      ctx.fillStyle = theme.frameFill;
+      ctx.strokeStyle = theme.frameBorder;
       ctx.lineWidth = 1.5;
       ctx.fillRect(s.x, s.y, s.w, s.h);
       ctx.strokeRect(s.x, s.y, s.w, s.h);
       if (zoom * 14 >= 4) {
-        ctx.fillStyle = '#5f6368';
+        ctx.fillStyle = theme.textMuted;
         ctx.font = '14px system-ui, sans-serif';
         ctx.textBaseline = 'bottom';
         ctx.fillText(s.title, s.x + 4, s.y - 4, s.w);
@@ -699,25 +714,65 @@ function matrixOf(ctx: CanvasRenderingContext2D): Matrix {
   return [m.a, m.b, m.c, m.d, m.e, m.f];
 }
 
-function drawText(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, zoom: number, pad: number): void {
+function drawText(ctx: CanvasRenderingContext2D, s: TextShape, zoom: number): void {
   const { size, font } = fontFor(s);
   if (size * zoom < 5) return; // too small to read; skip for speed
   if (!s.text) return;
-  const width = Math.max(s.w - pad * 2, 1);
+  const width = Math.max(s.w, 1);
   const lines = wrappedLines(ctx, s, width, font);
   ctx.font = font;
-  ctx.fillStyle = s.type === 'text' ? s.color : '#222222';
+  ctx.fillStyle = s.color;
   ctx.textBaseline = 'top';
   const lineHeight = size * 1.25;
-  const maxLines = Math.max(1, Math.floor((s.h - pad * 2 + lineHeight * 0.25) / lineHeight));
+  const maxLines = Math.max(1, Math.floor((s.h + lineHeight * 0.25) / lineHeight));
   const n = Math.min(lines.length, maxLines);
   for (let i = 0; i < n; i++) {
-    ctx.fillText(lines[i], s.x + pad, s.y + pad + i * lineHeight, width);
+    ctx.fillText(lines[i], s.x, s.y + i * lineHeight, width);
+  }
+}
+
+function drawStickyText(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {
+  if (!s.text) return;
+  const fit = stickyFit(ctx, s);
+  if (fit.size * zoom < 4) return;
+  ctx.font = fit.font;
+  ctx.fillStyle = theme.text;
+  ctx.textBaseline = 'top';
+  const width = Math.max(s.w - STICKY_PAD * 2, 1);
+  const maxLines = Math.max(1, Math.floor((s.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
+  const n = Math.min(fit.lines.length, maxLines);
+  for (let i = 0; i < n; i++) ctx.fillText(fit.lines[i], s.x + STICKY_PAD, s.y + STICKY_PAD + i * fit.lineHeight, width);
+}
+
+function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {
+  const n = s.votes.length;
+  if (n === 0 || zoom < 0.2) return;
+  const r = 5;
+  const gap = 3;
+  const shown = Math.min(n, 8);
+  ctx.fillStyle = theme.vote;
+  ctx.strokeStyle = theme.surface;
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < shown; i++) {
+    const cx = s.x + s.w - STICKY_PAD + 1 - r - i * (r * 2 + gap);
+    const cy = s.y + s.h - STICKY_PAD + 1 - r;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (n > shown) {
+    ctx.fillStyle = theme.text;
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`+${n - shown}`, s.x + s.w - STICKY_PAD - shown * (r * 2 + gap), s.y + s.h - STICKY_PAD + 3);
+    ctx.textAlign = 'start';
   }
 }
 
 /** Render the whole board (or a region) to an offscreen canvas, e.g. for PNG export. */
-export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 20): HTMLCanvasElement {
+export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 20, theme: CanvasTheme = LIGHT_CANVAS_THEME): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   const w = Math.max(1, Math.ceil((region.w + padding * 2) * scale));
   const h = Math.max(1, Math.ceil((region.h + padding * 2) * scale));
@@ -725,13 +780,13 @@ export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 2
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D not available');
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = theme.surface;
   ctx.fillRect(0, 0, w, h);
   ctx.setTransform(scale, 0, 0, scale, (padding - region.x) * scale, (padding - region.y) * scale);
   const base = matrixOf(ctx);
   const all = scene.all();
-  for (const s of all) if (s.type === 'frame') drawShape(ctx, scene, s, scale, base);
-  for (const s of all) if (s.type !== 'frame') drawShape(ctx, scene, s, scale, base);
+  for (const s of all) if (s.type === 'frame') drawShape(ctx, scene, s, scale, theme, base);
+  for (const s of all) if (s.type !== 'frame') drawShape(ctx, scene, s, scale, theme, base);
   return canvas;
 }
 

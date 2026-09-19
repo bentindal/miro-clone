@@ -62,6 +62,6 @@ describe('serialisation', () => {
       version: 1,
       shapes: [{ type: 'sticky', id: 'n', x: 0, y: 0, w: 10, h: 10 }],
     });
-    expect(back.get('n')).toMatchObject({ rotation: 0, text: '', parentId: null });
+    expect(back.get('n')).toMatchObject({ rotation: 0, text: '', parentId: null, votes: [] });
   });
 });

@@ -1,0 +1,273 @@
+/* One definition per control. Variants are props, never new selectors. */
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font: inherit;
+  font-family: var(--font);
+  font-size: var(--text-md);
+  line-height: 1;
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.ui-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.ui-button:active:not(:disabled) {
+  background: var(--surface-active);
+}
+
+.ui-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ui-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ui-button[data-size='sm'] {
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+}
+
+.ui-button[data-variant='primary'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+
+.ui-button[data-variant='primary']:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.ui-button[data-variant='ghost'] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.ui-button[data-variant='ghost']:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* Toggled on. Filled for the primary bar, outlined where the control itself
+   carries colour (a swatch) or sits inside a floating bar. */
+.ui-button[data-active='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-inverse);
+}
+
+.ui-button[data-active='true'][data-toggle='outline'] {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.ui-icon-button {
+  width: var(--control-height);
+  padding: 0;
+}
+
+.ui-icon-button[data-size='sm'] {
+  width: var(--control-height-sm);
+  padding: 0;
+}
+
+.ui-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+}
+
+/* The chip's own colour comes from an inline style, so selection is a ring
+   around it rather than a change of fill. */
+.ui-swatch[data-active='true'] {
+  border-color: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.ui-select {
+  font: inherit;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ui-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ui-input {
+  font: inherit;
+  font-family: var(--font);
+  font-size: var(--text-sm);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.ui-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.ui-color {
+  width: 24px;
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.ui-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+}
+
+.ui-panel[data-elevation='md'] {
+  box-shadow: var(--shadow-md);
+}
+
+.ui-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ui-panel-header strong {
+  flex: 1;
+}
+
+.ui-divider {
+  flex: none;
+  align-self: stretch;
+  background: var(--border-subtle);
+}
+
+.ui-divider[data-orientation='vertical'] {
+  width: 1px;
+  margin: 0 var(--space-1);
+}
+
+.ui-divider[data-orientation='horizontal'] {
+  height: 1px;
+  margin: var(--space-1) 0;
+}
+
+.ui-icon {
+  display: block;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ui-icon[data-filled='true'] {
+  fill: currentColor;
+  stroke: none;
+}
+
+.ui-tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.ui-tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  z-index: 10;
+  transition:
+    opacity var(--duration-fast) var(--ease),
+    visibility var(--duration-fast) var(--ease);
+}
+
+.ui-tooltip-anchor[data-placement='bottom'] .ui-tooltip {
+  top: calc(100% + var(--space-2));
+}
+
+.ui-tooltip-anchor[data-placement='top'] .ui-tooltip {
+  bottom: calc(100% + var(--space-2));
+}
+
+.ui-tooltip-anchor:hover .ui-tooltip,
+.ui-tooltip-anchor:focus-within .ui-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: var(--duration-base);
+}
+
+.ui-tooltip kbd {
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inverse-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button,
+  .ui-tooltip {
+    transition: none;
+  }
+}

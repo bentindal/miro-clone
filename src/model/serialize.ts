@@ -149,7 +149,13 @@ export function validateShape(raw: unknown): Shape {
       };
     }
     case 'sticky':
-      return { type, ...boxed(raw), text: optStr(raw.text, ''), fill: optStr(raw.fill, '#fff59d') };
+      return {
+        type,
+        ...boxed(raw),
+        text: optStr(raw.text, ''),
+        fill: optStr(raw.fill, '#fff59d'),
+        votes: Array.isArray(raw.votes) ? raw.votes.filter((v): v is string => typeof v === 'string') : [],
+      };
     case 'text':
       return {
         type,

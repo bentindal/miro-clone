@@ -3,20 +3,43 @@ import { type Editor, type Tool, TOOLS } from './Editor';
 import { useEditorVersion } from './useEditor';
 import { downloadBlob } from './download';
 import { type SyncSession, saveUser } from '../sync/session';
+import { Button, Divider, Icon, type IconName, IconButton, Panel, Tooltip } from '../ui';
 
-const TOOL_LABELS: Record<Tool, { label: string; key: string }> = {
-  select: { label: 'Select', key: 'V' },
-  hand: { label: 'Hand', key: 'H' },
-  rect: { label: 'Rectangle', key: 'R' },
-  ellipse: { label: 'Ellipse', key: 'O' },
-  line: { label: 'Line', key: 'L' },
-  sticky: { label: 'Sticky', key: 'N' },
-  text: { label: 'Text', key: 'T' },
-  pen: { label: 'Pen', key: 'P' },
-  connector: { label: 'Connector', key: 'C' },
-  frame: { label: 'Frame', key: 'F' },
-  comment: { label: 'Comment', key: 'M' },
+const TOOL_META: Record<Tool, { label: string; key: string; icon: IconName }> = {
+  select: { label: 'Select', key: 'V', icon: 'select' },
+  hand: { label: 'Hand', key: 'H', icon: 'hand' },
+  rect: { label: 'Rectangle', key: 'R', icon: 'rect' },
+  ellipse: { label: 'Ellipse', key: 'O', icon: 'ellipse' },
+  line: { label: 'Line', key: 'L', icon: 'line' },
+  sticky: { label: 'Sticky', key: 'N', icon: 'sticky' },
+  text: { label: 'Text', key: 'T', icon: 'text' },
+  pen: { label: 'Pen', key: 'P', icon: 'pen' },
+  connector: { label: 'Connector', key: 'C', icon: 'connector' },
+  frame: { label: 'Frame', key: 'F', icon: 'frame' },
+  comment: { label: 'Comment', key: 'M', icon: 'comment' },
 };
+
+/** Editing actions, in the order they appear. Each is one entry, not one block of JSX. */
+type ActionId = 'undo' | 'redo' | 'delete' | 'group' | 'ungroup' | 'bring-forward' | 'send-backward' | 'bring-to-front' | 'send-to-back';
+
+const ACTIONS: { id: ActionId; label: string; icon: IconName; shortcut?: string; run: (e: Editor) => void; enabled: (e: Editor) => boolean }[] = [
+  { id: 'undo', label: 'Undo', icon: 'undo', shortcut: 'Ctrl+Z', run: (e) => e.undo(), enabled: (e) => e.canUndo },
+  { id: 'redo', label: 'Redo', icon: 'redo', shortcut: 'Ctrl+Shift+Z', run: (e) => e.redo(), enabled: (e) => e.canRedo },
+  { id: 'delete', label: 'Delete', icon: 'trash', shortcut: 'Delete', run: (e) => e.deleteSelection(), enabled: (e) => e.selection.length > 0 },
+  { id: 'group', label: 'Group', icon: 'group', shortcut: 'Ctrl+G', run: (e) => e.groupSelection(), enabled: (e) => e.selection.length >= 2 },
+  {
+    id: 'ungroup',
+    label: 'Ungroup',
+    icon: 'ungroup',
+    shortcut: 'Ctrl+Shift+G',
+    run: (e) => e.ungroupSelection(),
+    enabled: (e) => e.selection.some((id) => e.scene.get(id)?.type === 'group'),
+  },
+  { id: 'bring-forward', label: 'Forward', icon: 'forward', shortcut: ']', run: (e) => e.bringForward(), enabled: (e) => e.selection.length > 0 },
+  { id: 'send-backward', label: 'Backward', icon: 'backward', shortcut: '[', run: (e) => e.sendBackward(), enabled: (e) => e.selection.length > 0 },
+  { id: 'bring-to-front', label: 'To front', icon: 'front', shortcut: '}', run: (e) => e.bringToFront(), enabled: (e) => e.selection.length > 0 },
+  { id: 'send-to-back', label: 'To back', icon: 'back', shortcut: '{', run: (e) => e.sendToBack(), enabled: (e) => e.selection.length > 0 },
+];
 
 interface ToolbarProps {
   editor: Editor;
@@ -26,8 +49,6 @@ interface ToolbarProps {
 
 export function Toolbar({ editor, session, mode }: ToolbarProps) {
   useEditorVersion(editor);
-  const hasSelection = editor.selection.length > 0;
-  const selectedGroup = editor.selection.some((id) => editor.scene.get(id)?.type === 'group');
   const readOnly = editor.readOnly;
 
   const exportPNG = () => {
@@ -56,111 +77,92 @@ export function Toolbar({ editor, session, mode }: ToolbarProps) {
 
   // Buttons never take focus so keyboard shortcuts keep reaching the board.
   const noFocus = (e: React.MouseEvent) => e.preventDefault();
+  const openComments = editor.comments.openCount;
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Tools" onMouseDown={noFocus}>
       <BoardHeader editor={editor} session={session} mode={mode} />
+      <Divider />
       <div className="toolbar-group">
-        {TOOLS.map((tool) => (
-          <button
-            key={tool}
-            type="button"
-            data-tool={tool}
-            className={editor.tool === tool ? 'active' : ''}
-            title={`${TOOL_LABELS[tool].label} (${TOOL_LABELS[tool].key})`}
-            aria-keyshortcuts={TOOL_LABELS[tool].key}
-            aria-pressed={editor.tool === tool}
-            disabled={readOnly && tool !== 'select' && tool !== 'hand'}
-            onClick={() => editor.setTool(tool)}
-          >
-            {TOOL_LABELS[tool].label}
-          </button>
+        {TOOLS.map((tool) => {
+          const meta = TOOL_META[tool];
+          return (
+            <Tooltip key={tool} label={meta.label} shortcut={meta.key}>
+              <IconButton
+                icon={meta.icon}
+                label={meta.label}
+                data-tool={tool}
+                aria-keyshortcuts={meta.key}
+                active={editor.tool === tool}
+                disabled={readOnly && tool !== 'select' && tool !== 'hand'}
+                onClick={() => editor.setTool(tool)}
+              />
+            </Tooltip>
+          );
+        })}
+      </div>
+      <Divider />
+      <div className="toolbar-group">
+        {ACTIONS.map((a) => (
+          <Tooltip key={a.id} label={a.label} shortcut={a.shortcut}>
+            <IconButton icon={a.icon} label={a.label} variant="ghost" data-action={a.id} disabled={!a.enabled(editor) || readOnly} onClick={() => a.run(editor)} />
+          </Tooltip>
         ))}
       </div>
+      <Divider />
       <div className="toolbar-group">
-        <button type="button" data-action="undo" disabled={!editor.canUndo || readOnly} onClick={() => editor.undo()} title="Undo (Ctrl+Z)">
-          Undo
-        </button>
-        <button type="button" data-action="redo" disabled={!editor.canRedo || readOnly} onClick={() => editor.redo()} title="Redo (Ctrl+Shift+Z)">
-          Redo
-        </button>
-        <button type="button" data-action="delete" disabled={!hasSelection || readOnly} onClick={() => editor.deleteSelection()} title="Delete">
-          Delete
-        </button>
-        <button type="button" data-action="group" disabled={editor.selection.length < 2 || readOnly} onClick={() => editor.groupSelection()} title="Group (Ctrl+G)">
-          Group
-        </button>
-        <button type="button" data-action="ungroup" disabled={!selectedGroup || readOnly} onClick={() => editor.ungroupSelection()} title="Ungroup (Ctrl+Shift+G)">
-          Ungroup
-        </button>
-        <button type="button" data-action="bring-forward" disabled={!hasSelection || readOnly} onClick={() => editor.bringForward()} title="Bring forward (])">
-          Forward
-        </button>
-        <button type="button" data-action="send-backward" disabled={!hasSelection || readOnly} onClick={() => editor.sendBackward()} title="Send backward ([)">
-          Backward
-        </button>
-        <button type="button" data-action="bring-to-front" disabled={!hasSelection || readOnly} onClick={() => editor.bringToFront()} title="Bring to front (})">
-          To front
-        </button>
-        <button type="button" data-action="send-to-back" disabled={!hasSelection || readOnly} onClick={() => editor.sendToBack()} title="Send to back ({)">
-          To back
-        </button>
-      </div>
-      <div className="toolbar-group">
-        <button type="button" data-action="zoom-out" aria-label="Zoom out" onClick={() => editor.zoomBy(0.8)} title="Zoom out (-)">
-          −
-        </button>
+        <Tooltip label="Zoom out" shortcut="−">
+          <IconButton icon="zoomOut" label="Zoom out" variant="ghost" data-action="zoom-out" onClick={() => editor.zoomBy(0.8)} />
+        </Tooltip>
         <span className="zoom" data-testid="zoom-level" aria-label="Zoom level">
           {Math.round(editor.camera.zoom * 100)}%
         </span>
-        <button type="button" data-action="zoom-in" aria-label="Zoom in" onClick={() => editor.zoomBy(1.25)} title="Zoom in (+)">
-          +
-        </button>
-        <button type="button" data-action="zoom-fit" onClick={() => editor.zoomToFit()} title="Zoom to fit (Shift+1)">
-          Fit
-        </button>
-        <button
-          type="button"
-          data-action="toggle-grid"
-          className={editor.gridSnap ? 'active' : ''}
-          aria-pressed={editor.gridSnap}
-          onClick={() => editor.setGridSnap(!editor.gridSnap)}
-          title="Snap to grid (G)"
-        >
-          Grid
-        </button>
+        <Tooltip label="Zoom in" shortcut="+">
+          <IconButton icon="zoomIn" label="Zoom in" variant="ghost" data-action="zoom-in" onClick={() => editor.zoomBy(1.25)} />
+        </Tooltip>
+        <Tooltip label="Zoom to fit" shortcut="Shift+1">
+          <IconButton icon="fit" label="Fit" variant="ghost" data-action="zoom-fit" onClick={() => editor.zoomToFit()} />
+        </Tooltip>
+        <Tooltip label="Snap to grid" shortcut="G">
+          <IconButton icon="grid" label="Grid" variant="ghost" data-action="toggle-grid" active={editor.gridSnap} onClick={() => editor.setGridSnap(!editor.gridSnap)} />
+        </Tooltip>
       </div>
+      <Divider />
       <div className="toolbar-group">
-        <button
-          type="button"
-          data-action="toggle-comments"
-          className={editor.commentsOpen ? 'active' : ''}
-          aria-pressed={editor.commentsOpen}
-          onClick={() => editor.setCommentsOpen(!editor.commentsOpen)}
-          title="Comments"
-        >
-          Comments{editor.comments.openCount > 0 ? ` (${editor.comments.openCount})` : ''}
-        </button>
-        <button type="button" data-action="export-png" onClick={exportPNG} title="Export PNG">
-          Export PNG
-        </button>
-        <button type="button" data-action="save-json" onClick={saveJSON} title="Save board">
-          Save
-        </button>
-        <label className={`file-button${readOnly ? ' disabled' : ''}`} title="Load board">
-          Load
-          <input
-            type="file"
-            accept="application/json,.json"
-            aria-label="Load board file"
-            disabled={readOnly}
-            data-action="load-json"
-            onChange={(e) => {
-              loadJSON(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-        </label>
+        <Tooltip label={openComments > 0 ? `Comments (${openComments} open)` : 'Comments'}>
+          <Button
+            icon="comment"
+            variant="ghost"
+            data-action="toggle-comments"
+            aria-label={openComments > 0 ? `Comments, ${openComments} open` : 'Comments'}
+            active={editor.commentsOpen}
+            onClick={() => editor.setCommentsOpen(!editor.commentsOpen)}
+          >
+            {openComments > 0 ? openComments : null}
+          </Button>
+        </Tooltip>
+        <Tooltip label="Export as PNG">
+          <IconButton icon="image" label="Export PNG" variant="ghost" data-action="export-png" onClick={exportPNG} />
+        </Tooltip>
+        <Tooltip label="Save board as JSON">
+          <IconButton icon="save" label="Save" variant="ghost" data-action="save-json" onClick={saveJSON} />
+        </Tooltip>
+        <Tooltip label="Load a board file">
+          <label className={`ui-button ui-icon-button file-button${readOnly ? ' disabled' : ''}`} data-variant="ghost" data-size="md">
+            <Icon name="load" />
+            <input
+              type="file"
+              accept="application/json,.json"
+              aria-label="Load board file"
+              disabled={readOnly}
+              data-action="load-json"
+              onChange={(e) => {
+                loadJSON(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        </Tooltip>
       </div>
     </div>
   );
@@ -190,7 +192,7 @@ function BoardHeader({ editor, session, mode }: ToolbarProps) {
   return (
     <div className="toolbar-group board-header">
       <input
-        className="board-title"
+        className="ui-input board-title"
         data-testid="board-title"
         aria-label="Board title"
         placeholder="Untitled board"
@@ -224,7 +226,7 @@ function BoardHeader({ editor, session, mode }: ToolbarProps) {
             ))}
           </div>
           <input
-            className="user-name"
+            className="ui-input user-name"
             data-testid="user-name"
             aria-label="Your name"
             value={session.user.name}
@@ -239,19 +241,19 @@ function BoardHeader({ editor, session, mode }: ToolbarProps) {
               if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
             }}
           />
-          <button type="button" data-action="share" aria-expanded={shareOpen} onClick={() => setShareOpen((o) => !o)} title="Share this board">
+          <Button icon="share" data-action="share" aria-expanded={shareOpen} onClick={() => setShareOpen((o) => !o)}>
             Share
-          </button>
+          </Button>
           {shareOpen && (
-            <div className="share-panel" data-testid="share-panel" onMouseDown={(e) => e.stopPropagation()}>
+            <Panel className="share-panel" data-testid="share-panel" onMouseDown={(e) => e.stopPropagation()}>
               {session.info.editLink && (
                 <label>
                   Anyone with this link can edit
                   <span className="share-row">
-                    <input readOnly value={session.info.editLink} data-testid="share-edit-link" onFocus={(e) => e.target.select()} />
-                    <button type="button" onClick={() => copy('edit', session.info.editLink!)}>
+                    <input className="ui-input" readOnly value={session.info.editLink} data-testid="share-edit-link" onFocus={(e) => e.target.select()} />
+                    <Button size="sm" icon={copied === 'edit' ? 'check' : undefined} onClick={() => copy('edit', session.info.editLink!)}>
                       {copied === 'edit' ? 'Copied' : 'Copy'}
-                    </button>
+                    </Button>
                   </span>
                 </label>
               )}
@@ -259,14 +261,14 @@ function BoardHeader({ editor, session, mode }: ToolbarProps) {
                 <label>
                   Anyone with this link can view
                   <span className="share-row">
-                    <input readOnly value={session.info.viewLink} data-testid="share-view-link" onFocus={(e) => e.target.select()} />
-                    <button type="button" onClick={() => copy('view', session.info.viewLink!)}>
+                    <input className="ui-input" readOnly value={session.info.viewLink} data-testid="share-view-link" onFocus={(e) => e.target.select()} />
+                    <Button size="sm" icon={copied === 'view' ? 'check' : undefined} onClick={() => copy('view', session.info.viewLink!)}>
                       {copied === 'view' ? 'Copied' : 'Copy'}
-                    </button>
+                    </Button>
                   </span>
                 </label>
               )}
-            </div>
+            </Panel>
           )}
         </>
       )}
