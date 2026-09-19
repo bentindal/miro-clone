@@ -36,7 +36,9 @@ This is the part that matters more than the look.
 - **Adding a shape property touches five places**: the type, the serialiser,
   `StylePatch`, the `setStyle` switch, and hand-written JSX in
   `PropertyBar.tsx` with its own value-extraction line. That file is 230
-  lines of conditionals and grows with every property.
+  lines of conditionals and grows with every property. *(Fixed in UI-2:
+  `StylePatch` is derived and `setStyle` is a loop, so it is the type, the
+  serialiser and one descriptor.)*
 - **Adding a tool touches five places**: the `Tool` union, `TOOLS`, the
   `TOOL_META` map, the pointer-down switch, and the keyboard map. *(UI-1 took
   this to three: the `Tool` union, one `TOOL_META` entry and one `RAIL_GROUPS`
@@ -127,24 +129,50 @@ fixed 520px width and let the bar run off the right edge.
 **Extension point delivered:** a new panel is one `registerPanel` call; a new
 tool is one `TOOL_META` entry and one `RAIL_GROUPS` entry.
 
-## Phase UI-2: schema-driven property panel
+## Phase UI-2: schema-driven property panel — done
 
 The single highest-leverage change for extensibility.
 
-1. **Field descriptors.** A shape type declares its editable fields as data:
-   `{ kind: 'color', key: 'fill', label: 'Fill', palette: 'sticky' }`,
-   `{ kind: 'enum', key: 'style', options: CONNECTOR_STYLES }`,
-   `{ kind: 'number', key: 'strokeWidth', options: [1, 2, 4, 8] }`,
-   `{ kind: 'action', id: 'vote' }`.
-2. **Generic renderer.** The property bar renders the intersection of the
-   selected shapes' schemas. The 230 lines of conditionals go away.
-3. **Consistent multi-select semantics** fall out of one code path: mixed
-   values show as indeterminate rather than silently showing the first
-   shape's value, which is the current behaviour and is wrong.
+1. **Field descriptors.** [x] `src/editor/fields.ts` declares every editable
+   property once: its kind, the shape types that have it, how to read it off a
+   shape and what patch writing it produces. `StylePatch` is a mapped type
+   over that table, so the patch `setStyle` accepts and the fields the bar can
+   edit cannot drift apart.
+2. **Generic renderer.** [x] The property bar renders whichever fields the
+   selection brings, in the order they are declared, with one branch per kind
+   of control rather than one per property. `Editor.setStyle` reads the same
+   table: its 41-line switch is a 15-line loop.
+3. **Indeterminate multi-select.** [x] A field whose shapes disagree reads as
+   mixed: no swatch pressed, `Mixed` in the dropdown, `data-mixed` on the
+   control. It used to show the first shape's value, which the control then
+   wrote back on the next click, quietly changing shapes that were already
+   right.
 
-**Extension point delivered:** adding a property becomes the type, the
-serialiser and one descriptor. Three places instead of five, and the UI is
-free.
+**A union, not an intersection.** This document previously said the bar should
+render the intersection of the selected shapes' schemas. That is wrong: a
+rectangle and a line share no fill, and hiding stroke because one of them has
+no fill would be worse than what came before. The bar renders the union and
+applies each field to the shapes that have it, which is also what it did
+before, and is what the indeterminate state exists to make honest.
+
+**Extension point delivered:** the property bar no longer mentions a single
+shape property.
+
+| Lines in `PropertyBar.tsx` naming a shape property | Before | After |
+| --- | --- | --- |
+| | 83 | 0 |
+
+Adding a property is the shape type, the serialiser, one descriptor, and a
+default wherever the shape is created. The patch type, `setStyle` and the
+whole UI follow from the descriptor.
+
+*Proved by* `src/editor/__tests__/fields.test.ts` — every field reads and
+writes back on every shape type it claims (a half-declared field fails there
+rather than in the UI), a patch touches only the shapes that have its
+properties, a connector end is rewritten rather than replaced, and a
+disagreeing selection reports mixed — and by `e2e/properties.spec.ts`, which
+checks the mixed swatches and the `Mixed` dropdown in the browser and that
+picking a value settles the whole selection.
 
 ## Phase UI-3: canvas chrome
 
@@ -196,17 +224,20 @@ Now that the renderer takes a theme, make the canvas look deliberate.
 - **Do not start with dark mode.** Without UI-0 it is a second set of
   hardcoded values.
 - **Do not polish the property bar before UI-2.** That work would be thrown
-  away.
+  away. *(UI-2 is done, so polishing it is now fair game: it is wide, and
+  collapsing the fill and stroke palettes behind a popover is the obvious
+  next move.)*
 - **Do not add a CSS framework.** The token layer plus primitives is smaller
   than configuring one.
 
 ## Sequencing
 
 UI-0 and UI-1 are the ones that change the impression, and UI-2 is the one
-that changes the cost of everything after. UI-0 and UI-1 are done; UI-2 is
-next and is worth doing before any more feature work, because the property
-bar is now the home for everything contextual and it is still 250 lines of
-hand-written conditionals.
+that changes the cost of everything after. All three are done, so the block
+that was worth doing together is complete. UI-3 onwards can be interleaved
+with feature work, and the phase 3 features still outstanding in
+[SPEC.md](SPEC.md) (rich text, minimap, image upload) now have a shell, a
+set of primitives and a property schema to land in rather than add to.
 
 The phase 3 feature work in [SPEC.md](SPEC.md) (rich text, minimap, image
 upload) should land after UI-1, so each new surface uses the shell and the

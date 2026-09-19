@@ -110,6 +110,64 @@ test.describe('property editing', () => {
     await expect(bar).toBeVisible();
   });
 
+  // Showing the first shape's value for a selection that disagrees is a lie
+  // the control writes back on the next click, quietly changing the shapes
+  // that were already what the person wanted.
+  test('a selection that disagrees shows as mixed, and picking a value settles it', async ({ page }) => {
+    const ctx = await openBoard(page);
+    const a = await drawRect(ctx, { x: 100, y: 100 }, { x: 200, y: 200 });
+    const b = await drawRect(ctx, { x: 300, y: 100 }, { x: 400, y: 200 });
+    await selectTool(page, 'select');
+    const bar = page.getByTestId('property-bar');
+    await click(ctx, { x: 150, y: 150 });
+    await bar.locator('[data-testid="prop-fill-swatch"][data-color="#e53935"]').click();
+    await click(ctx, { x: 350, y: 150 });
+    await bar.locator('[data-testid="prop-fill-swatch"][data-color="#1e88e5"]').click();
+
+    await drag(ctx, { x: 50, y: 50 }, { x: 450, y: 250 });
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('[data-testid="prop-fill-swatch"][aria-pressed="true"]')).toHaveCount(0);
+    await expect(bar.getByTestId('prop-fill-custom')).toHaveAttribute('data-mixed', 'true');
+
+    await bar.locator('[data-testid="prop-fill-swatch"][data-color="#43a047"]').click();
+    expect(await shapeById(page, a.id)).toMatchObject({ fill: '#43a047' });
+    expect(await shapeById(page, b.id)).toMatchObject({ fill: '#43a047' });
+    await expect(bar.locator('[data-testid="prop-fill-swatch"][data-color="#43a047"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(bar.getByTestId('prop-fill-custom')).not.toHaveAttribute('data-mixed', 'true');
+  });
+
+  test('a dropdown over a disagreeing selection reads Mixed', async ({ page }) => {
+    const ctx = await openBoard(page);
+    await tool(page, 'text');
+    await click(ctx, { x: 600, y: 300 });
+    await typeAndCommit(page, 'First');
+    await tool(page, 'text');
+    await click(ctx, { x: 600, y: 480 });
+    await typeAndCommit(page, 'Second');
+    await selectTool(page, 'select');
+    const bar = page.getByTestId('property-bar');
+    await click(ctx, { x: 620, y: 300 });
+    await bar.getByTestId('prop-font-size').selectOption('32');
+
+    // Clear the selection first: the bar floats above it, over the point the
+    // marquee would otherwise start from.
+    await page.getByTestId('canvas').focus();
+    await page.keyboard.press('Escape');
+    await expect(bar).toHaveCount(0);
+    // Text shapes are 240 wide; the marquee has to contain them, not clip them.
+    await drag(ctx, { x: 540, y: 250 }, { x: 900, y: 560 });
+    const sizes = (await shapesOf(page, 'text')).map((t) => (t as unknown as { fontSize: number }).fontSize);
+    expect(new Set(sizes).size).toBe(2);
+    const select = bar.getByTestId('prop-font-size');
+    await expect(select).toHaveAttribute('data-mixed', 'true');
+    await expect(select).toHaveValue('');
+    await expect(select.locator('option[disabled]')).toHaveText('Mixed');
+
+    await select.selectOption('24');
+    await expect.poll(async () => (await shapesOf(page, 'text')).map((t) => (t as unknown as { fontSize: number }).fontSize)).toEqual([24, 24]);
+    await expect(select).not.toHaveAttribute('data-mixed', 'true');
+  });
+
   test('styles survive save and load', async ({ page }) => {
     const ctx = await openBoard(page);
     const r = await drawRect(ctx, { x: 100, y: 200 }, { x: 300, y: 300 });
