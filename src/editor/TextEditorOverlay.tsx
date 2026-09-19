@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { worldToScreen } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT } from '../model/scene';
 import { fontFor } from '../render/renderer';
-import { STICKY_PAD, fitText } from '../model/textFit';
+import { STICKY_PAD, fitText, layoutTextBlock } from '../model/textFit';
 import { hasText } from '../model/types';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
@@ -66,8 +66,15 @@ export function TextEditorOverlay({ editor }: { editor: Editor }) {
   const tl = worldToScreen(cam, { x: shape.x, y: top });
   const w = shape.w * cam.zoom;
   const h = (isFrame ? FRAME_TITLE_HEIGHT : shape.h) * cam.zoom;
-  const size = shape.type === 'frame' ? 14 : shape.type === 'sticky' ? fitText(shape.text, shape.w, shape.h, STICKY_PAD, measureText).size : fontFor(shape).size;
+  const fit = shape.type === 'sticky' ? fitText(shape.text, shape.w, shape.h, STICKY_PAD, measureText) : null;
+  const size = shape.type === 'frame' ? 14 : shape.type === 'text' ? fontFor(shape).size : (fit?.size ?? 14);
   const center = { x: tl.x + w / 2, y: tl.y + h / 2 };
+  // A textarea has no vertical alignment, so the space above the text is
+  // padding, worked out the same way the renderer places the block.
+  const block =
+    fit && shape.type === 'sticky'
+      ? layoutTextBlock({ x: 0, y: 0, w: shape.w, h: shape.h }, STICKY_PAD, fit.lines.length, fit.lineHeight, shape.align, shape.valign)
+      : null;
   return (
     <textarea
       ref={ref as React.RefObject<HTMLTextAreaElement>}
@@ -91,6 +98,8 @@ export function TextEditorOverlay({ editor }: { editor: Editor }) {
         width: w,
         height: h,
         padding: pad * cam.zoom,
+        paddingTop: (block ? block.y : pad) * cam.zoom,
+        textAlign: block ? block.textAlign : undefined,
         fontSize: size * cam.zoom,
         lineHeight: 1.25,
         transform: isFrame ? undefined : `rotate(${shape.rotation}rad)`,

@@ -8,8 +8,8 @@ export function ellipse(id: string, x: number, y: number, w: number, h: number, 
   return { type: 'ellipse', id, parentId: null, x, y, w, h, rotation: 0, fill: '#fff', stroke: '#000', strokeWidth: 2, ...extra };
 }
 
-export function sticky(id: string, x: number, y: number, text = ''): StickyShape {
-  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0', votes: [] };
+export function sticky(id: string, x: number, y: number, text = '', extra: Partial<StickyShape> = {}): StickyShape {
+  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0', align: 'center', valign: 'middle', votes: [], ...extra };
 }
 
 export function pen(id: string, x: number, y: number, points: { x: number; y: number }[]): PenShape {

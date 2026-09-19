@@ -236,6 +236,14 @@ needs a passing end-to-end test.
       Proof: [`e2e/resize-snapping.spec.ts`](e2e/resize-snapping.spec.ts) › `resize snapping and even spacing` ›
       `a dragged edge snaps to a neighbour's edge with a guide; the anchored edge stays put`,
       `moving a third object snaps it to the spacing of the other two and shows the gaps`.
+- [x] Sticky note text alignment. A note's text is centred both ways by
+      default; the property bar sets left, centre or right and top, middle or
+      bottom. The in-place editor sits where the drawn text sits. Notes written
+      before alignment existed open centred.
+      Proof: [`e2e/sticky-align.spec.ts`](e2e/sticky-align.spec.ts) › `sticky text alignment` ›
+      `is centred to start with, and follows the buttons in both directions`,
+      `survives a round trip through the board file`,
+      `a note written before alignment existed opens centred`.
 - [ ] Sticky notes that auto-fit their text; tags; voting dots.
 - [ ] Rich text: bold, lists, links.
 - [ ] Minimap and zoom to selection.

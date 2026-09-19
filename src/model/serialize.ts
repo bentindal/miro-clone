@@ -1,5 +1,16 @@
 import { Scene } from './scene';
-import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, type ConnectorStyle, type Id, type Shape } from './types';
+import {
+  ANCHORS,
+  ARROW_HEADS,
+  CONNECTOR_STYLES,
+  TEXT_ALIGNS,
+  TEXT_VALIGNS,
+  type Anchor,
+  type ArrowHead,
+  type ConnectorStyle,
+  type Id,
+  type Shape,
+} from './types';
 
 export const BOARD_FORMAT_VERSION = 1;
 
@@ -82,6 +93,11 @@ function connectorStyle(v: unknown): ConnectorStyle {
   return typeof v === 'string' && (CONNECTOR_STYLES as string[]).includes(v) ? (v as ConnectorStyle) : 'straight';
 }
 
+/** One of a fixed set, or the fallback for anything else. */
+function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+}
+
 function point(v: unknown, name: string): { x: number; y: number } {
   if (!isRecord(v)) throw new Error(`Invalid point for ${name}`);
   return { x: num(v.x, `${name}.x`), y: num(v.y, `${name}.y`) };
@@ -154,6 +170,9 @@ export function validateShape(raw: unknown): Shape {
         ...boxed(raw),
         text: optStr(raw.text, ''),
         fill: optStr(raw.fill, '#fff59d'),
+        // Notes saved before notes had an alignment take the default.
+        align: oneOf(raw.align, TEXT_ALIGNS, 'center'),
+        valign: oneOf(raw.valign, TEXT_VALIGNS, 'middle'),
         votes: Array.isArray(raw.votes) ? raw.votes.filter((v): v is string => typeof v === 'string') : [],
       };
     case 'text':

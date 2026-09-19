@@ -132,6 +132,27 @@ const GLYPHS = {
     </>
   ),
   check: <path d="m5 13 4.5 4.5L19 7" />,
+  textLeft: <path d="M4 5.5h16M4 10h10M4 14.5h16M4 19h10" />,
+  textCenter: <path d="M4 5.5h16M7 10h10M4 14.5h16M7 19h10" />,
+  textRight: <path d="M4 5.5h16M10 10h10M4 14.5h16M10 19h10" />,
+  textTop: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
+      <path d="M7 7.5h10M7 11h6" />
+    </>
+  ),
+  textMiddle: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
+      <path d="M7 10.5h10M7 14h6" />
+    </>
+  ),
+  textBottom: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
+      <path d="M7 13.5h10M7 17h6" />
+    </>
+  ),
   alignLeft: <path d="M4 3v18M7.5 7.5h10M7.5 16.5h6" />,
   alignCenterX: <path d="M12 3v18M7 7.5h10M9 16.5h6" />,
   alignRight: <path d="M20 3v18M6.5 7.5h10M10.5 16.5h6" />,

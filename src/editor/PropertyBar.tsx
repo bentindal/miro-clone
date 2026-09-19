@@ -229,15 +229,31 @@ function FieldControl({ field, shapes, editor }: { field: Keyed; shapes: Shape[]
           <Select data-testid={`prop-${field.id}`} aria-label={field.a11y} value={value as number | undefined} options={field.options} onValueChange={(v) => apply(Number(v))} />
         </>
       );
-    case 'enum':
+    case 'enum': {
+      const optionIcon = field.optionIcon as ((v: unknown) => IconName) | undefined;
       if (field.as === 'buttons') {
         return (
           <>
-            {field.options.map((o) => (
-              <Button key={o} size="sm" toggle="outline" active={value === o} keepFocus data-testid={`prop-${field.id}-${o}`} onClick={() => apply(o)}>
-                {o}
-              </Button>
-            ))}
+            {field.label && <span className="prop-label">{field.label}</span>}
+            {field.options.map((o) =>
+              optionIcon ? (
+                <IconButton
+                  key={o}
+                  size="sm"
+                  icon={optionIcon(o)}
+                  label={optionLabel ? optionLabel(o) : o}
+                  toggle="outline"
+                  active={value === o}
+                  keepFocus
+                  data-testid={`prop-${field.id}-${o}`}
+                  onClick={() => apply(o)}
+                />
+              ) : (
+                <Button key={o} size="sm" toggle="outline" active={value === o} keepFocus data-testid={`prop-${field.id}-${o}`} onClick={() => apply(o)}>
+                  {o}
+                </Button>
+              ),
+            )}
           </>
         );
       }
@@ -247,6 +263,7 @@ function FieldControl({ field, shapes, editor }: { field: Keyed; shapes: Shape[]
           <Select data-testid={`prop-${field.id}`} aria-label={field.a11y} value={value as string | undefined} options={field.options} onValueChange={(v) => apply(v)} />
         </>
       );
+    }
     case 'text':
       return (
         <input

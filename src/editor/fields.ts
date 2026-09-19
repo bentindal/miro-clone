@@ -2,6 +2,8 @@ import {
   ANCHORS,
   ARROW_HEADS,
   CONNECTOR_STYLES,
+  TEXT_ALIGNS,
+  TEXT_VALIGNS,
   type Anchor,
   type ArrowHead,
   type ConnectorStyle,
@@ -9,6 +11,8 @@ import {
   type Shape,
   type ShapeType,
   type StickyShape,
+  type TextAlign,
+  type TextVAlign,
 } from '../model/types';
 import type { IconName } from '../ui';
 import { loadUser } from '../sync/session';
@@ -30,6 +34,8 @@ interface FieldCommon {
   a11y?: string;
   /** Accessible name of one option's control, for fields rendered as a row. */
   optionLabel?: (value: never) => string;
+  /** Icon for one option's button, where a word would be worse than a picture. */
+  optionIcon?: (value: never) => IconName;
   /** Shape types that have this property. Anything else ignores the field. */
   types: readonly ShapeType[];
 }
@@ -112,6 +118,7 @@ export const FIELDS = {
     write: (v) => ({ fill: v }) as Partial<Shape>,
   } satisfies ColorField,
 
+
   vote: {
     kind: 'action',
     id: 'vote',
@@ -177,6 +184,33 @@ export const FIELDS = {
     write: (v) => ({ color: v }) as Partial<Shape>,
   } satisfies ColorField,
 
+
+  align: {
+    kind: 'enum',
+    id: 'align',
+    group: 'Text',
+    label: 'Align',
+    types: ['sticky'],
+    options: TEXT_ALIGNS,
+    as: 'buttons',
+    optionLabel: (a: TextAlign) => `Align text ${a === 'center' ? 'centre' : a}`,
+    optionIcon: (a: TextAlign) => (a === 'left' ? 'textLeft' : a === 'right' ? 'textRight' : 'textCenter'),
+    read: (s) => (s as StickyShape).align,
+    write: (v) => ({ align: v }) as Partial<Shape>,
+  } satisfies EnumField<TextAlign>,
+
+  valign: {
+    kind: 'enum',
+    id: 'valign',
+    group: 'Text',
+    types: ['sticky'],
+    options: TEXT_VALIGNS,
+    as: 'buttons',
+    optionLabel: (a: TextVAlign) => `Align text to the ${a}`,
+    optionIcon: (a: TextVAlign) => (a === 'top' ? 'textTop' : a === 'bottom' ? 'textBottom' : 'textMiddle'),
+    read: (s) => (s as StickyShape).valign,
+    write: (v) => ({ valign: v }) as Partial<Shape>,
+  } satisfies EnumField<TextVAlign>,
 
   connectorStyle: {
     kind: 'enum',
