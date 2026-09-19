@@ -24,7 +24,6 @@ import { Scene, type SceneSnapshot } from '../model/scene';
 import { type BoardFile, deserializeScene, serializeScene } from '../model/serialize';
 import {
   type Anchor,
-  type ArrowHead,
   type BoxedShape,
   type ConnectorShape,
   type ConnectorStyle,
@@ -54,6 +53,9 @@ import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
 import { type Tool, TOOL_BY_KEY } from './tools';
+import { type StylePatch, patchFor } from './fields';
+
+export type { StylePatch } from './fields';
 import { type CanvasTheme, LIGHT_CANVAS_THEME, resolveCanvasTheme } from '../render/theme';
 
 /** A comment pin as drawn on the canvas. */
@@ -1166,44 +1168,23 @@ export class Editor {
    * Apply style properties to every leaf in the selection that supports them.
    * One undo step for the whole selection.
    */
+  /**
+   * Apply a patch to every selected leaf that has the properties in it. Which
+   * shape types have which property is declared once, in `fields.ts`, so this
+   * does not grow when a property is added.
+   */
   setStyle(patch: StylePatch): void {
     const leaves = new Set<Id>();
     for (const id of this.selection) for (const leaf of this.scene.leaves(id)) leaves.add(leaf);
     if (leaves.size === 0) return;
+    // New connectors keep the last style picked.
     if (patch.connectorStyle) this.connectorStyle = patch.connectorStyle;
     this.transact(() => {
       for (const id of leaves) {
-        const s = this.scene.mustGet(id);
-        switch (s.type) {
-          case 'rect':
-          case 'ellipse':
-            this.scene.update<typeof s>(id, pick(patch, ['fill', 'stroke', 'strokeWidth']));
-            break;
-          case 'sticky':
-            this.scene.update<StickyShape>(id, pick(patch, ['fill']));
-            break;
-          case 'line':
-          case 'pen':
-            this.scene.update<typeof s>(id, pick(patch, ['stroke', 'strokeWidth']));
-            break;
-          case 'text':
-            this.scene.update<TextShape>(id, pick(patch, ['fontSize', 'color']));
-            break;
-          case 'connector': {
-            const next: Partial<ConnectorShape> = pick(patch, ['stroke', 'strokeWidth']);
-            if (patch.connectorStyle) next.style = patch.connectorStyle;
-            if (patch.startAnchor) next.start = { ...s.start, anchor: patch.startAnchor };
-            if (patch.endAnchor) next.end = { ...s.end, anchor: patch.endAnchor };
-            if (patch.startArrow) next.startArrow = patch.startArrow;
-            if (patch.endArrow) next.endArrow = patch.endArrow;
-            if (patch.label !== undefined) next.label = patch.label;
-            this.scene.update(id, next);
-            break;
-          }
-          case 'frame':
-          case 'group':
-            break;
-        }
+        const shape = this.scene.mustGet(id);
+        // Typed at the field; the shape's own type is restored by `Scene.update`.
+        const next = patchFor(shape, patch);
+        if (Object.keys(next).length > 0) this.scene.update(id, next as Partial<Omit<Shape, 'id' | 'type'>>);
       }
     });
   }
@@ -1598,26 +1579,6 @@ export class Editor {
   exportPNGCanvas(scale = 1): HTMLCanvasElement {
     return renderToCanvas(this.scene, boardBounds(this.scene), scale);
   }
-}
-
-export interface StylePatch {
-  fill?: string;
-  stroke?: string;
-  strokeWidth?: number;
-  fontSize?: number;
-  color?: string;
-  connectorStyle?: ConnectorStyle;
-  startAnchor?: Anchor;
-  endAnchor?: Anchor;
-  startArrow?: ArrowHead;
-  endArrow?: ArrowHead;
-  label?: string;
-}
-
-function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
-  const out = {} as Pick<T, K>;
-  for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
-  return out;
 }
 
 function sceneChanged(a: SceneSnapshot, b: SceneSnapshot): boolean {
