@@ -12,6 +12,7 @@ import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '
 import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
 import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
+import { type FitResult, STICKY_PAD, fitText } from '../model/textFit';
 
 export const HANDLE_SIZE = 8;
 /** Below this zoom, same-style shapes are merged into shared paths. */
@@ -58,13 +59,25 @@ export interface RenderStats {
 }
 
 const wrapCache = new WeakMap<Shape, { width: number; font: string; lines: string[] }>();
+const fitCache = new WeakMap<StickyShape, FitResult>();
 
-export function fontFor(s: StickyShape | TextShape): { size: number; font: string } {
-  const size = s.type === 'text' ? s.fontSize : 16;
-  return { size, font: `${size}px system-ui, sans-serif` };
+export function fontFor(s: TextShape): { size: number; font: string } {
+  return { size: s.fontSize, font: `${s.fontSize}px system-ui, sans-serif` };
 }
 
-function wrappedLines(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, width: number, font: string): string[] {
+/** Auto-fitted layout of a sticky note's text, cached per immutable record. */
+export function stickyFit(ctx: CanvasRenderingContext2D, s: StickyShape): FitResult {
+  const cached = fitCache.get(s);
+  if (cached) return cached;
+  const fit = fitText(s.text, s.w, s.h, STICKY_PAD, (text, font) => {
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  });
+  fitCache.set(s, fit);
+  return fit;
+}
+
+function wrappedLines(ctx: CanvasRenderingContext2D, s: TextShape, width: number, font: string): string[] {
   const cached = wrapCache.get(s);
   if (cached && cached.width === width && cached.font === font) return cached.lines;
   ctx.font = font;
@@ -667,11 +680,12 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       ctx.fillRect(s.x + 3, s.y + 4, s.w, s.h);
       ctx.fillStyle = s.fill;
       ctx.fillRect(s.x, s.y, s.w, s.h);
-      drawText(ctx, s, zoom, 10);
+      drawStickyText(ctx, s, zoom);
+      drawVotes(ctx, s, zoom);
       break;
     }
     case 'text':
-      drawText(ctx, s, zoom, 0);
+      drawText(ctx, s, zoom);
       break;
     case 'frame': {
       ctx.fillStyle = '#ffffff';
@@ -699,20 +713,60 @@ function matrixOf(ctx: CanvasRenderingContext2D): Matrix {
   return [m.a, m.b, m.c, m.d, m.e, m.f];
 }
 
-function drawText(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, zoom: number, pad: number): void {
+function drawText(ctx: CanvasRenderingContext2D, s: TextShape, zoom: number): void {
   const { size, font } = fontFor(s);
   if (size * zoom < 5) return; // too small to read; skip for speed
   if (!s.text) return;
-  const width = Math.max(s.w - pad * 2, 1);
+  const width = Math.max(s.w, 1);
   const lines = wrappedLines(ctx, s, width, font);
   ctx.font = font;
-  ctx.fillStyle = s.type === 'text' ? s.color : '#222222';
+  ctx.fillStyle = s.color;
   ctx.textBaseline = 'top';
   const lineHeight = size * 1.25;
-  const maxLines = Math.max(1, Math.floor((s.h - pad * 2 + lineHeight * 0.25) / lineHeight));
+  const maxLines = Math.max(1, Math.floor((s.h + lineHeight * 0.25) / lineHeight));
   const n = Math.min(lines.length, maxLines);
   for (let i = 0; i < n; i++) {
-    ctx.fillText(lines[i], s.x + pad, s.y + pad + i * lineHeight, width);
+    ctx.fillText(lines[i], s.x, s.y + i * lineHeight, width);
+  }
+}
+
+function drawStickyText(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number): void {
+  if (!s.text) return;
+  const fit = stickyFit(ctx, s);
+  if (fit.size * zoom < 4) return;
+  ctx.font = fit.font;
+  ctx.fillStyle = '#222222';
+  ctx.textBaseline = 'top';
+  const width = Math.max(s.w - STICKY_PAD * 2, 1);
+  const maxLines = Math.max(1, Math.floor((s.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
+  const n = Math.min(fit.lines.length, maxLines);
+  for (let i = 0; i < n; i++) ctx.fillText(fit.lines[i], s.x + STICKY_PAD, s.y + STICKY_PAD + i * fit.lineHeight, width);
+}
+
+function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number): void {
+  const n = s.votes.length;
+  if (n === 0 || zoom < 0.2) return;
+  const r = 5;
+  const gap = 3;
+  const shown = Math.min(n, 8);
+  ctx.fillStyle = '#e53935';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < shown; i++) {
+    const cx = s.x + s.w - STICKY_PAD + 1 - r - i * (r * 2 + gap);
+    const cy = s.y + s.h - STICKY_PAD + 1 - r;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (n > shown) {
+    ctx.fillStyle = '#222222';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`+${n - shown}`, s.x + s.w - STICKY_PAD - shown * (r * 2 + gap), s.y + s.h - STICKY_PAD + 3);
+    ctx.textAlign = 'start';
   }
 }
 

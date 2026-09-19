@@ -1,6 +1,7 @@
 import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, type ConnectorStyle, type Shape } from '../model/types';
 import type { Editor, StylePatch } from './Editor';
 import { useEditorVersion } from './useEditor';
+import { loadUser } from '../sync/session';
 
 export const PALETTE = ['#ffffff', '#222222', '#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#a5d6a7', '#90caf9'];
 export const STICKY_PALETTE = ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', '#ce93d8', '#ffffff'];
@@ -32,7 +33,11 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const canDistribute = topLevel.length >= 3;
   if (fillable.length + strokable.length + texts.length + connectors.length === 0 && !canAlign) return null;
 
+  const stickies = leaves.filter((s) => s.type === 'sticky');
   const onlyStickies = fillable.length > 0 && fillable.every((s) => s.type === 'sticky');
+  const voter = loadUser().name;
+  const voted = stickies.length > 0 && stickies.every((s) => (s as { votes: string[] }).votes.includes(voter));
+  const voteCount = stickies.reduce((n, s) => n + (s as { votes: string[] }).votes.length, 0);
   const fillPalette = onlyStickies ? STICKY_PALETTE : PALETTE;
   const currentFill = fillable.length ? (fillable[0] as { fill: string }).fill : undefined;
   const currentStroke = strokable.length ? (strokable[0] as { stroke: string }).stroke : undefined;
@@ -76,6 +81,14 @@ export function PropertyBar({ editor }: { editor: Editor }) {
             />
           ))}
           <input type="color" data-testid="prop-fill-custom" aria-label="Custom fill" value={currentFill ?? '#ffffff'} onChange={(e) => apply({ fill: e.target.value })} />
+        </div>
+      )}
+      {stickies.length > 0 && (
+        <div className="prop-group" aria-label="Votes">
+          <button type="button" className={voted ? 'active' : ''} aria-pressed={voted} data-testid="prop-vote" title={voted ? 'Remove your vote' : 'Vote for this note'} onMouseDown={noFocus} onClick={() => editor.toggleVote(voter)}>
+            {voted ? 'Voted' : 'Vote'}
+            {voteCount > 0 ? ` · ${voteCount}` : ''}
+          </button>
         </div>
       )}
       {strokable.length > 0 && (

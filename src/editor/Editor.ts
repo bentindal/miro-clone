@@ -51,6 +51,7 @@ import {
 import { type AlignKind, type Guide, type SpacingGuide, alignDeltas, computeSnap, distributeDeltas, snapEdges } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
+import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
 
 /** A comment pin as drawn on the canvas. */
@@ -164,6 +165,14 @@ export class Editor {
   private pointerListeners = new Set<() => void>();
   private version = 0;
   private canvas: HTMLCanvasElement | null = null;
+  private measureCtx: CanvasRenderingContext2D | null = null;
+  /** Text measurement for layout decisions; uses the board canvas, falls back to a rough estimate. */
+  private readonly measure = (text: string, font: string): number => {
+    if (!this.measureCtx) this.measureCtx = (this.canvas ?? (typeof document !== 'undefined' ? document.createElement('canvas') : null))?.getContext('2d') ?? null;
+    if (!this.measureCtx) return text.length * parseFloat(font) * 0.6;
+    this.measureCtx.font = font;
+    return this.measureCtx.measureText(text).width;
+  };
   private renderHandle: number | null = null;
   private stickyColorIndex = 0;
 
@@ -1014,6 +1023,7 @@ export class Editor {
         rotation: 0,
         text: '',
         fill,
+        votes: [],
       };
       this.scene.add(s);
       this.assignFrames([s.id]);
@@ -1073,7 +1083,12 @@ export class Editor {
     if (!s) return;
     if (s.type === 'frame') this.scene.update<FrameShape>(s.id, { title: text });
     else if (s.type === 'connector') this.scene.update<ConnectorShape>(s.id, { label: text.replace(/\n/g, ' ') });
-    else if (hasText(s)) this.scene.update<StickyShape | TextShape>(s.id, { text });
+    else if (s.type === 'sticky') {
+      // The note shrinks its font to fit; once it cannot shrink further it grows taller instead.
+      const fit = fitText(text, s.w, s.h, STICKY_PAD, this.measure);
+      const h = fit.overflow ? Math.max(s.h, requiredHeight(text, s.w, STICKY_PAD, this.measure)) : s.h;
+      this.scene.update<StickyShape>(s.id, { text, h });
+    } else if (hasText(s)) this.scene.update<StickyShape | TextShape>(s.id, { text });
     this.notify();
   }
 
@@ -1089,6 +1104,22 @@ export class Editor {
   }
 
   // ---- editing commands --------------------------------------------------
+
+  /** Toggle the given person's vote on every selected sticky note. */
+  toggleVote(voter: string): void {
+    if (this.readOnly || !voter) return;
+    const stickies = this.selection.flatMap((id) => this.scene.leaves(id)).filter((id) => this.scene.get(id)?.type === 'sticky');
+    if (stickies.length === 0) return;
+    // If every selected note already has the vote, remove it; otherwise add it where missing.
+    const all = stickies.every((id) => (this.scene.mustGet(id) as StickyShape).votes.includes(voter));
+    this.transact(() => {
+      for (const id of stickies) {
+        const s = this.scene.mustGet(id) as StickyShape;
+        const votes = all ? s.votes.filter((v) => v !== voter) : s.votes.includes(voter) ? s.votes : [...s.votes, voter];
+        this.scene.update<StickyShape>(id, { votes });
+      }
+    });
+  }
 
   /**
    * Apply style properties to every leaf in the selection that supports them.
