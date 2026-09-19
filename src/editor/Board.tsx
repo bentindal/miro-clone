@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor, Modifiers } from './Editor';
+import { EmptyBoard } from './EmptyBoard';
 import { PropertyBar } from './PropertyBar';
 import { TextEditorOverlay } from './TextEditorOverlay';
 import { useEditorVersion } from './useEditor';
@@ -163,6 +164,7 @@ export function Board({ editor }: { editor: Editor }) {
         onDoubleClick={(e) => editor.onDoubleClick(local(e))}
         onContextMenu={(e) => e.preventDefault()}
       />
+      <EmptyBoard editor={editor} />
       <TextEditorOverlay editor={editor} />
       <PropertyBar editor={editor} />
       <p id="board-help" className="sr-only">

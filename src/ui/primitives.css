@@ -293,3 +293,79 @@
     transition: none;
   }
 }
+
+/* Chrome arrives rather than appearing. One duration, one easing, and a
+   translate small enough to read as a settle rather than a slide. */
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ui-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ui-slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes ui-slide-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.toaster {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-8);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 420px;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-md);
+  pointer-events: auto;
+  animation: ui-slide-from-bottom var(--duration-base) var(--ease);
+}
+
+.toast[data-kind='success'] {
+  border-left-color: var(--success-text);
+}
+
+.toast[data-kind='error'] {
+  border-left-color: var(--danger);
+}
+
+.toast-text {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

@@ -22,7 +22,7 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   UI-0: tools and actions are icon buttons with tooltips.)*
 - **No depth.** One border colour, one radius, no elevation, no motion. The
   floating property bar, the comments panel and the toolbar are visually the
-  same object.
+  same object. *(Elevation fixed in UI-0, motion in UI-4.)*
 - **The canvas chrome is functional, not designed.** Selection handles,
   guides, comment pins and peer cursors each pick their own colour inline.
   *(Colours fixed in UI-0, the drawing itself in UI-3.)*
@@ -218,12 +218,38 @@ Now that the renderer takes a theme, make the canvas look deliberate.
    invisible opacity across a few thousand dots. The old grid is in the test
    as a guard, so the bound cannot quietly stop meaning anything.
 
-## Phase UI-4: motion and feedback
+## Phase UI-4: motion and feedback — done
 
-1. Panels slide rather than appear. 150ms, one easing token.
-2. Tool changes, selection and hover get transitions.
-3. Toasts for save, export and load failures, replacing `window.alert`.
-4. Empty states: the board with nothing on it should suggest the first action.
+1. **Panels arrive rather than appear.** [x] The dock slides in from the
+   right, the board menu, share popover and arrange menu rise, the property
+   bar fades. All on `--duration-base`/`--duration-fast` and the one easing
+   token, and all off under `prefers-reduced-motion`.
+   The property bar fades without moving on purpose: it is positioned from the
+   selection and measured, so it must never be anywhere but where it says.
+2. **Transitions on tool changes, selection and hover.** [x] *for the DOM*,
+   since UI-0: buttons transition background, border and colour. **Not done
+   for the canvas**, and not worth doing. Selection and hover are drawn, not
+   styled, so a transition means a render loop running for the length of every
+   fade — a per-frame cost, against a 16ms budget, for an effect nobody asked
+   for. The canvas already responds within one frame.
+3. **Toasts replacing `window.alert`.** [x] `src/ui/toast.ts` and `Toaster`.
+   Save, export and load all report, and a failed load no longer blocks the
+   tab on a native dialog that could not be styled and had nowhere to put the
+   successful cases beside it. Errors stay up longer than confirmations.
+4. **Empty state.** [x] An empty board names the first action and the key that
+   takes it. It is `pointer-events: none` throughout rather than offering a
+   button, because a button there would sit exactly where the first drag
+   starts and would swallow it.
+
+*Proved by* `src/ui/__tests__/toast.test.ts` (order, subscriber notifications
+only on real changes, a stable snapshot so `useSyncExternalStore` cannot loop,
+auto-dismissal on injected timers, errors outlasting confirmations) and
+`e2e/feedback.spec.ts` — the hint appears, a rectangle can be drawn straight
+through the middle of it, and it goes when the board is no longer empty; a
+save raises a toast that leaves on its own and can also be dismissed by hand;
+and the dock's animation is `ui-slide-from-right` normally and `none` under
+reduced motion. `e2e/save-load.spec.ts` now asserts the malformed-file message
+arrives as an error toast **and that no dialog is raised at all**.
 
 ## Phase UI-5: theme, density, accessibility
 
@@ -264,11 +290,12 @@ Now that the renderer takes a theme, make the canvas look deliberate.
 ## Sequencing
 
 UI-0 and UI-1 are the ones that change the impression, and UI-2 is the one
-that changes the cost of everything after. Those three and UI-3 are done.
-UI-4 onwards can be interleaved with feature work, and the phase 3 features
-still outstanding in [SPEC.md](SPEC.md) (rich text, minimap, image upload)
-now have a shell, a set of primitives, a property schema and a themed canvas
-to land in rather than add to.
+that changes the cost of everything after. UI-0 through UI-4 are done. What
+is left is UI-5 (dark mode, density, a contrast audit) and UI-6 (the command
+registry and palette), either of which can be interleaved with the phase 3
+features still outstanding in [SPEC.md](SPEC.md) — rich text, minimap, image
+upload — which now have a shell, a set of primitives, a property schema, a
+themed canvas and somewhere to report failures to land in rather than add to.
 
 The phase 3 feature work in [SPEC.md](SPEC.md) (rich text, minimap, image
 upload) should land after UI-1, so each new surface uses the shell and the
