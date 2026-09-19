@@ -37,7 +37,7 @@ import {
   newId,
 } from '../model/types';
 import {
-  HANDLE_SIZE,
+  HANDLE_HIT_RADIUS,
   type HandleName,
   type Overlay,
   type RenderStats,
@@ -53,6 +53,7 @@ import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
 import { type Tool, TOOL_BY_KEY } from './tools';
+import { toolCursor } from './cursors';
 import { type StylePatch, patchFor } from './fields';
 
 export type { StylePatch } from './fields';
@@ -682,7 +683,7 @@ export class Editor {
     if (this.tool !== 'select' || this.readOnly) return null;
     const frame = this.selectionFrame;
     if (!frame) return null;
-    const r = HANDLE_SIZE / 2 + 3;
+    const r = HANDLE_HIT_RADIUS;
     for (const name of Object.keys(frame.handles) as HandleName[]) {
       if (dist(frame.handles[name], screen) <= r) return name;
     }
@@ -698,7 +699,7 @@ export class Editor {
       const map: Record<string, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
       return map[h];
     }
-    if (this.tool !== 'select') return 'crosshair';
+    if (this.tool !== 'select') return toolCursor(this.tool, this.theme) ?? 'crosshair';
     if (this.pinAt(screen)) return 'pointer';
     return this.hoverId ? 'move' : 'default';
   }
