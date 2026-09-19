@@ -6,7 +6,7 @@ import { ToolRail } from './editor/ToolRail';
 import { TopBar } from './editor/TopBar';
 import { ZoomCluster } from './editor/ZoomCluster';
 import { Home } from './Home';
-import { ApiError, createBoard, getBoard, parseBoardLocation } from './sync/api';
+import { ApiError, NoSyncServerError, createBoard, getBoard, parseBoardLocation } from './sync/api';
 import { rememberBoard, updateRecentTitle } from './sync/recent';
 import { SyncSession, loadUser } from './sync/session';
 import { installTestHooks } from './testHooks';
@@ -59,11 +59,14 @@ export default function App() {
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError) {
+          // The server answered: this really is a bad board or a bad token.
           setBoot({ kind: 'error', message: err.status === 404 ? 'This board does not exist.' : err.status === 403 ? 'This link is not valid for this board.' : err.message });
-        } else {
-          // Network failure: no sync server. Keep working locally.
+        } else if (err instanceof NoSyncServerError) {
+          // Nothing is serving the API here. Keep working, in this tab only.
           editor.adoptDocument();
           setBoot({ kind: 'local', reason: 'No sync server reachable; this board lives in this tab only.' });
+        } else {
+          setBoot({ kind: 'error', message: err instanceof Error ? err.message : String(err) });
         }
       }
     })();
