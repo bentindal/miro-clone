@@ -2,11 +2,21 @@ import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, ty
 import type { Editor, StylePatch } from './Editor';
 import { useEditorVersion } from './useEditor';
 import { loadUser } from '../sync/session';
+import { Button, type IconName, IconButton, Select, Swatch } from '../ui';
 
 export const PALETTE = ['#ffffff', '#222222', '#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#a5d6a7', '#90caf9'];
 export const STICKY_PALETTE = ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', '#ce93d8', '#ffffff'];
 const WIDTHS = [1, 2, 4, 8];
 const FONT_SIZES = [12, 14, 18, 24, 32, 48];
+
+const ALIGNMENTS: { kind: 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bottom'; label: string; icon: IconName }[] = [
+  { kind: 'left', label: 'Align left', icon: 'alignLeft' },
+  { kind: 'centerX', label: 'Align horizontal centres', icon: 'alignCenterX' },
+  { kind: 'right', label: 'Align right', icon: 'alignRight' },
+  { kind: 'top', label: 'Align top', icon: 'alignTop' },
+  { kind: 'centerY', label: 'Align vertical centres', icon: 'alignCenterY' },
+  { kind: 'bottom', label: 'Align bottom', icon: 'alignBottom' },
+];
 
 const BAR_WIDTH = 520;
 const BAR_HEIGHT = 44;
@@ -59,7 +69,6 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const top = above >= 8 ? above : Math.min(maxY + 16, editor.viewport.h - BAR_HEIGHT - 8);
 
   const apply = (patch: StylePatch) => editor.setStyle(patch);
-  const noFocus = (e: React.MouseEvent) => e.preventDefault();
 
   return (
     <div className="property-bar" data-testid="property-bar" role="toolbar" aria-label="Properties" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
@@ -67,151 +76,107 @@ export function PropertyBar({ editor }: { editor: Editor }) {
         <div className="prop-group" aria-label="Fill">
           <span className="prop-label">Fill</span>
           {fillPalette.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`swatch${currentFill === c ? ' active' : ''}`}
-              style={{ background: c }}
-              title={`Fill ${c}`}
-              aria-label={`Fill ${c}`}
-              data-testid="prop-fill-swatch"
-              data-color={c}
-              onMouseDown={noFocus}
-              onClick={() => apply({ fill: c })}
-            />
+            <Swatch key={c} color={c} label={`Fill ${c}`} active={currentFill === c} keepFocus data-testid="prop-fill-swatch" data-color={c} onClick={() => apply({ fill: c })} />
           ))}
-          <input type="color" data-testid="prop-fill-custom" aria-label="Custom fill" value={currentFill ?? '#ffffff'} onChange={(e) => apply({ fill: e.target.value })} />
+          <input className="ui-color" type="color" data-testid="prop-fill-custom" aria-label="Custom fill" value={currentFill ?? '#ffffff'} onChange={(e) => apply({ fill: e.target.value })} />
         </div>
       )}
       {stickies.length > 0 && (
         <div className="prop-group" aria-label="Votes">
-          <button type="button" className={voted ? 'active' : ''} aria-pressed={voted} data-testid="prop-vote" title={voted ? 'Remove your vote' : 'Vote for this note'} onMouseDown={noFocus} onClick={() => editor.toggleVote(voter)}>
+          <Button
+            size="sm"
+            icon={voted ? 'check' : undefined}
+            toggle="outline"
+            active={voted}
+            keepFocus
+            data-testid="prop-vote"
+            title={voted ? 'Remove your vote' : 'Vote for this note'}
+            onClick={() => editor.toggleVote(voter)}
+          >
             {voted ? 'Voted' : 'Vote'}
             {voteCount > 0 ? ` · ${voteCount}` : ''}
-          </button>
+          </Button>
         </div>
       )}
       {strokable.length > 0 && (
         <div className="prop-group" aria-label="Stroke">
           <span className="prop-label">Stroke</span>
           {PALETTE.slice(0, 8).map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`swatch${currentStroke === c ? ' active' : ''}`}
-              style={{ background: c }}
-              title={`Stroke ${c}`}
-              aria-label={`Stroke ${c}`}
-              data-testid="prop-stroke-swatch"
-              data-color={c}
-              onMouseDown={noFocus}
-              onClick={() => apply({ stroke: c })}
-            />
+            <Swatch key={c} color={c} label={`Stroke ${c}`} active={currentStroke === c} keepFocus data-testid="prop-stroke-swatch" data-color={c} onClick={() => apply({ stroke: c })} />
           ))}
-          <input type="color" data-testid="prop-stroke-custom" aria-label="Custom stroke" value={currentStroke ?? '#222222'} onChange={(e) => apply({ stroke: e.target.value })} />
+          <input className="ui-color" type="color" data-testid="prop-stroke-custom" aria-label="Custom stroke" value={currentStroke ?? '#222222'} onChange={(e) => apply({ stroke: e.target.value })} />
           {WIDTHS.map((w) => (
-            <button
+            <Button
               key={w}
-              type="button"
-              className={`width${currentWidth === w ? ' active' : ''}`}
-              title={`Stroke width ${w}`}
+              size="sm"
+              toggle="outline"
+              active={currentWidth === w}
+              keepFocus
               aria-label={`Stroke width ${w}`}
-              aria-pressed={currentWidth === w}
               data-testid={`prop-width-${w}`}
-              onMouseDown={noFocus}
               onClick={() => apply({ strokeWidth: w })}
             >
-              <span style={{ height: w, background: '#222', display: 'block', width: 16 }} />
-            </button>
+              <span className="stroke-width-bar" style={{ height: w }} />
+            </Button>
           ))}
         </div>
       )}
       {texts.length > 0 && (
         <div className="prop-group" aria-label="Text">
           <span className="prop-label">Size</span>
-          <select data-testid="prop-font-size" aria-label="Font size" value={currentFont} onChange={(e) => apply({ fontSize: Number(e.target.value) })}>
-            {FONT_SIZES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <input type="color" data-testid="prop-text-color" aria-label="Text colour" value={(texts[0] as { color: string }).color} onChange={(e) => apply({ color: e.target.value })} />
+          <Select data-testid="prop-font-size" aria-label="Font size" value={currentFont} options={FONT_SIZES} onValueChange={(v) => apply({ fontSize: Number(v) })} />
+          <input
+            className="ui-color"
+            type="color"
+            data-testid="prop-text-color"
+            aria-label="Text colour"
+            value={(texts[0] as { color: string }).color}
+            onChange={(e) => apply({ color: e.target.value })}
+          />
         </div>
       )}
       {canAlign && (
         <div className="prop-group" aria-label="Arrange">
-          {(
-            [
-              ['left', 'Align left', '⇤'],
-              ['centerX', 'Align horizontal centres', '↔'],
-              ['right', 'Align right', '⇥'],
-              ['top', 'Align top', '⤒'],
-              ['centerY', 'Align vertical centres', '↕'],
-              ['bottom', 'Align bottom', '⤓'],
-            ] as const
-          ).map(([kind, label, glyph]) => (
-            <button key={kind} type="button" aria-label={label} title={label} data-testid={`prop-align-${kind}`} onMouseDown={noFocus} onClick={() => editor.align(kind)}>
-              {glyph}
-            </button>
+          {ALIGNMENTS.map((a) => (
+            <IconButton key={a.kind} size="sm" icon={a.icon} label={a.label} keepFocus data-testid={`prop-align-${a.kind}`} onClick={() => editor.align(a.kind)} />
           ))}
-          <button type="button" aria-label="Distribute horizontally" title="Distribute horizontally" data-testid="prop-distribute-x" disabled={!canDistribute} onMouseDown={noFocus} onClick={() => editor.distribute('x')}>
-            ⫴
-          </button>
-          <button type="button" aria-label="Distribute vertically" title="Distribute vertically" data-testid="prop-distribute-y" disabled={!canDistribute} onMouseDown={noFocus} onClick={() => editor.distribute('y')}>
-            ☰
-          </button>
+          <IconButton
+            size="sm"
+            icon="distributeX"
+            label="Distribute horizontally"
+            keepFocus
+            data-testid="prop-distribute-x"
+            disabled={!canDistribute}
+            onClick={() => editor.distribute('x')}
+          />
+          <IconButton
+            size="sm"
+            icon="distributeY"
+            label="Distribute vertically"
+            keepFocus
+            data-testid="prop-distribute-y"
+            disabled={!canDistribute}
+            onClick={() => editor.distribute('y')}
+          />
         </div>
       )}
       {connectors.length > 0 && (
         <div className="prop-group" aria-label="Connector">
           {CONNECTOR_STYLES.map((st) => (
-            <button
-              key={st}
-              type="button"
-              className={currentStyle === st ? 'active' : ''}
-              aria-pressed={currentStyle === st}
-              data-testid={`prop-connector-${st}`}
-              onMouseDown={noFocus}
-              onClick={() => apply({ connectorStyle: st })}
-            >
+            <Button key={st} size="sm" toggle="outline" active={currentStyle === st} keepFocus data-testid={`prop-connector-${st}`} onClick={() => apply({ connectorStyle: st })}>
               {st}
-            </button>
+            </Button>
           ))}
           <span className="prop-label">From</span>
-          <select data-testid="prop-anchor-start" aria-label="Start anchor" value={startAnchor} onChange={(e) => apply({ startAnchor: e.target.value as Anchor })}>
-            {ANCHORS.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+          <Select data-testid="prop-anchor-start" aria-label="Start anchor" value={startAnchor} options={ANCHORS} onValueChange={(v) => apply({ startAnchor: v as Anchor })} />
           <span className="prop-label">To</span>
-          <select data-testid="prop-anchor-end" aria-label="End anchor" value={endAnchor} onChange={(e) => apply({ endAnchor: e.target.value as Anchor })}>
-            {ANCHORS.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+          <Select data-testid="prop-anchor-end" aria-label="End anchor" value={endAnchor} options={ANCHORS} onValueChange={(v) => apply({ endAnchor: v as Anchor })} />
           <span className="prop-label">Heads</span>
-          <select data-testid="prop-arrow-start" aria-label="Start arrowhead" value={startArrow} onChange={(e) => apply({ startArrow: e.target.value as ArrowHead })}>
-            {ARROW_HEADS.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-          <select data-testid="prop-arrow-end" aria-label="End arrowhead" value={endArrow} onChange={(e) => apply({ endArrow: e.target.value as ArrowHead })}>
-            {ARROW_HEADS.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+          <Select data-testid="prop-arrow-start" aria-label="Start arrowhead" value={startArrow} options={ARROW_HEADS} onValueChange={(v) => apply({ startArrow: v as ArrowHead })} />
+          <Select data-testid="prop-arrow-end" aria-label="End arrowhead" value={endArrow} options={ARROW_HEADS} onValueChange={(v) => apply({ endArrow: v as ArrowHead })} />
           {connectors.length === 1 && (
             <input
-              className="label-input"
+              className="ui-input label-input"
               data-testid="prop-label"
               aria-label="Connector label"
               placeholder="Label"

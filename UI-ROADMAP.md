@@ -16,7 +16,8 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   history, z-order, zoom, file actions and comments compete as equals. A
   mature editor puts creation tools on a left rail, board identity and
   presence in a slim top bar, and everything else in context.
-- **No icons.** Text labels in boxes read as a debug harness.
+- **No icons.** Text labels in boxes read as a debug harness. *(Fixed in
+  UI-0: tools and actions are icon buttons with tooltips.)*
 - **No depth.** One border colour, one radius, no elevation, no motion. The
   floating property bar, the comments panel and the toolbar are visually the
   same object.
@@ -24,7 +25,7 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   guides, comment pins and peer cursors each pick their own colour inline.
 - **No theme.** Sixty hardcoded hex values in `src/app.css`, twenty-four more
   in `src/render/renderer.ts`. Dark mode is currently impossible without a
-  find-and-replace across two languages.
+  find-and-replace across two languages. *(Fixed in UI-0: both are zero.)*
 
 ## Why it is hard to extend today
 
@@ -35,35 +36,49 @@ This is the part that matters more than the look.
   `PropertyBar.tsx` with its own value-extraction line. That file is 230
   lines of conditionals and grows with every property.
 - **Adding a tool touches five places**: the `Tool` union, `TOOLS`, the
-  `TOOL_LABELS` map, the pointer-down switch, and the keyboard map.
+  `TOOL_META` map, the pointer-down switch, and the keyboard map. UI-0 did
+  not change this; UI-1 and UI-6 do.
 - **"A button" is defined four times in CSS** (`.toolbar button`,
   `.property-bar button`, `.thread-head button`, `.composer-actions button`),
-  each with its own padding, border and radius.
+  each with its own padding, border and radius. *(Fixed in UI-0: one
+  `.ui-button`, variants by prop.)*
 - **Panels have nowhere to go.** `CommentsPanel` is absolutely positioned at
   the top right with a fixed width. A layers panel or a template library
   would fight it for the same pixels.
 - **Buttons and shortcuts are wired separately**, so every action is
   implemented twice and can drift.
 
-## Phase UI-0: foundations
+## Phase UI-0: foundations — done
 
 No new features. The point is that everything after this is cheap.
 
-1. **Design tokens.** One `:root` block: surface, surface-raised, border,
-   text, text-muted, accent, danger, radius, shadow, space, font, duration.
-   Every rule in `app.css` refers to tokens only.
-2. **Canvas theme object.** The canvas cannot read CSS variables. Add
-   `src/render/theme.ts` that resolves the tokens once into a plain object
-   and pass it into `renderBoard`. Both surfaces then change colour together,
-   which is what makes dark mode a one-line switch later.
-3. **Component primitives.** `Button`, `IconButton`, `Select`, `Swatch`,
+1. **Design tokens.** [x] `src/ui/tokens.css` holds one `:root` block:
+   surfaces, borders, text, accent and status colours, the canvas group,
+   radius, elevation, spacing, type scale, control heights and motion. No
+   other stylesheet writes a colour.
+   *Proved by* `src/ui/__tests__/tokens.test.ts` — no colour literal outside
+   `tokens.css`, and every `var(--x)` the stylesheets use is declared.
+2. **Canvas theme object.** [x] `src/render/theme.ts` resolves the `--canvas-*`
+   group into a plain object, which `renderBoard` and `drawShape` take as an
+   argument. The renderer has no colour of its own left.
+   *Proved by* `src/render/__tests__/theme.test.ts` (the fallback matches the
+   stylesheet; `renderer.ts` holds no colour literal) and
+   `e2e/theme.spec.ts` — changing `--canvas-bg` and `--accent` at runtime and
+   calling `refreshTheme()` repaints the canvas and the DOM together.
+3. **Component primitives.** [x] `Button`, `IconButton`, `Select`, `Swatch`,
    `Panel`, `Tooltip`, `Divider` in `src/ui/`. One definition each, variants
-   by prop. Delete the four CSS button blocks.
-4. **Icon set.** Inline SVG sprite, one component, `<Icon name="sticky" />`.
-   Twenty-odd icons for existing tools and actions.
+   by prop. The four CSS button blocks are gone.
+   *Proved by* `src/ui/__tests__/tokens.test.ts` — no stylesheet but
+   `primitives.css` targets the `button` element.
+4. **Icon set.** [x] `src/ui/Icon.tsx`, one component over 38 inline SVG
+   glyphs, covering every tool, editing action and alignment.
+   *Proved by* `e2e/theme.spec.ts` — every tool and action control in the
+   toolbar contains an icon — and `e2e/accessibility.spec.ts`, which still
+   finds an accessible name on every control now that the labels are gone.
 
 **Extension point delivered:** changing the entire look is editing one token
-block; adding a control uses an existing primitive.
+block; adding a control uses an existing primitive. Toolbar actions are now
+one entry in an `ACTIONS` table rather than a block of hand-written JSX.
 
 ## Phase UI-1: the shell
 
@@ -127,10 +142,12 @@ Now that the renderer takes a theme, make the canvas look deliberate.
 
 ## Phase UI-5: theme, density, accessibility
 
-1. **Dark mode.** One token block, both surfaces, because of UI-0.2.
+1. **Dark mode.** One token block, both surfaces, because of UI-0.2. The
+   canvas side already works: see `e2e/theme.spec.ts`.
 2. **Density toggle** for smaller screens.
 3. **Focus rings** on the new primitives, contrast audit against the tokens,
-   reduced-motion honoured.
+   reduced-motion honoured. The primitives already ship focus rings and a
+   `prefers-reduced-motion` rule; what is left is the contrast audit.
 
 ## Phase UI-6: command layer
 

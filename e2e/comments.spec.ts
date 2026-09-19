@@ -52,7 +52,9 @@ test.describe('comments', () => {
     expect(await activeThread(page)).toBe(thread.id);
     // The pin sits at the rectangle's top-right corner.
     expect(await pins(page)).toEqual([{ id: thread.id, x: 300, y: 100, count: 1, resolved: false, active: true }]);
-    await expect(page.locator('[data-action="toggle-comments"]')).toHaveText('Comments (1)');
+    // The count rides on the button: a badge for sighted users, the accessible name for the rest.
+    await expect(page.locator('[data-action="toggle-comments"]')).toHaveText('1');
+    await expect(page.locator('[data-action="toggle-comments"]')).toHaveAttribute('aria-label', 'Comments, 1 open');
 
     // Bo sees the pin and the text, replies, and Ada sees the reply.
     await expect.poll(() => pins(other.page)).toHaveLength(1);
@@ -96,7 +98,8 @@ test.describe('comments', () => {
     expect((await comments(page))[0].resolved).toBe(true);
     await expect(page.getByTestId('thread')).toHaveCount(0);
     expect(await pins(page)).toEqual([]);
-    await expect(page.locator('[data-action="toggle-comments"]')).toHaveText('Comments');
+    await expect(page.locator('[data-action="toggle-comments"]')).toHaveText('');
+    await expect(page.locator('[data-action="toggle-comments"]')).toHaveAttribute('aria-label', 'Comments');
 
     await page.getByTestId('show-resolved').check();
     await expect(page.getByTestId('thread')).toHaveCount(1);

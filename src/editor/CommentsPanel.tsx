@@ -3,6 +3,7 @@ import type { CommentThread } from '../sync/comments';
 import { loadUser } from '../sync/session';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
+import { Button, IconButton, Panel } from '../ui';
 
 /**
  * Side panel: compose a pending comment, browse threads, reply, resolve.
@@ -17,16 +18,22 @@ export function CommentsPanel({ editor }: { editor: Editor }) {
   const readOnly = editor.readOnly;
 
   return (
-    <aside className="comments-panel" data-testid="comments-panel" aria-label="Comments" onPointerDown={(e) => e.stopPropagation()}>
-      <header>
-        <strong>Comments</strong>
-        <label className="show-resolved">
-          <input type="checkbox" data-testid="show-resolved" checked={editor.showResolved} onChange={(e) => editor.setShowResolved(e.target.checked)} /> Show resolved
-        </label>
-        <button type="button" aria-label="Close comments" onClick={() => editor.setCommentsOpen(false)}>
-          ×
-        </button>
-      </header>
+    <Panel
+      className="comments-panel"
+      data-testid="comments-panel"
+      role="complementary"
+      aria-label="Comments"
+      onPointerDown={(e) => e.stopPropagation()}
+      header={
+        <>
+          <strong>Comments</strong>
+          <label className="show-resolved">
+            <input type="checkbox" data-testid="show-resolved" checked={editor.showResolved} onChange={(e) => editor.setShowResolved(e.target.checked)} /> Show resolved
+          </label>
+          <IconButton icon="close" label="Close comments" variant="ghost" size="sm" onClick={() => editor.setCommentsOpen(false)} />
+        </>
+      }
+    >
       {editor.pendingComment && (
         <Composer
           testId="comment-composer"
@@ -46,7 +53,7 @@ export function CommentsPanel({ editor }: { editor: Editor }) {
           <ThreadView key={t.id} thread={t} editor={editor} author={author} readOnly={readOnly} active={t.id === editor.activeThreadId} />
         ))}
       </ul>
-    </aside>
+    </Panel>
   );
 }
 
@@ -61,8 +68,10 @@ function ThreadView({ thread, editor, author, readOnly, active }: { thread: Comm
       <div className="thread-head">
         <span className="thread-anchor">{anchored ? 'On an object' : thread.shapeId ? 'Object removed' : 'On the board'}</span>
         {!readOnly && (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={thread.resolved ? undefined : 'check'}
             data-testid={thread.resolved ? 'reopen-thread' : 'resolve-thread'}
             onClick={(e) => {
               e.stopPropagation();
@@ -70,7 +79,7 @@ function ThreadView({ thread, editor, author, readOnly, active }: { thread: Comm
             }}
           >
             {thread.resolved ? 'Reopen' : 'Resolve'}
-          </button>
+          </Button>
         )}
       </div>
       <ul className="messages">
@@ -135,13 +144,13 @@ function Composer({ testId, placeholder, disabled, onSubmit, onCancel }: { testI
       />
       <div className="composer-actions">
         {onCancel && (
-          <button type="button" onClick={onCancel}>
+          <Button size="sm" variant="ghost" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
-        <button type="submit" className="primary" disabled={disabled || !text.trim()} data-testid={`${testId}-post`}>
+        <Button type="submit" size="sm" variant="primary" disabled={disabled || !text.trim()} data-testid={`${testId}-post`}>
           Post
-        </button>
+        </Button>
       </div>
     </form>
   );

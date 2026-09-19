@@ -1,0 +1,91 @@
+/**
+ * The one place a colour, radius, shadow, spacing step or duration is named.
+ *
+ * Nothing else in the project may write a literal. `app.css` refers to these
+ * only; the canvas cannot read CSS variables, so `src/render/theme.ts`
+ * resolves the `--canvas-*` group into a plain object at runtime and a unit
+ * test holds its fallback values to what is declared here.
+ */
+:root {
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-sunken: #f4f5f7;
+  --surface-hover: #eef1f5;
+  --surface-active: #e4e8ee;
+  --surface-muted: #eceff1;
+
+  /* Borders */
+  --border: #c8ccd2;
+  --border-subtle: #e0e3e7;
+  --border-strong: #9aa0a6;
+
+  /* Text */
+  --text: #222222;
+  --text-muted: #5f6368;
+  --text-inverse: #ffffff;
+  /* Inverted surface, used by the tooltip bubble. */
+  --surface-inverse: #222222;
+  --surface-inverse-soft: rgba(255, 255, 255, 0.18);
+
+  /* Accent and status */
+  --accent: #2f6fed;
+  --accent-soft: rgba(47, 111, 237, 0.12);
+  --danger: #e53935;
+  --danger-bg: #fdecea;
+  --danger-text: #b3261e;
+  --success-bg: #e6f4ea;
+  --success-text: #1e7e34;
+  --warning-bg: #fff3cd;
+  --warning-text: #7a5b00;
+
+  /* Canvas. Resolved into a plain object by src/render/theme.ts. */
+  --canvas-bg: #f4f5f7;
+  --canvas-grid: #d5d8de;
+  --canvas-hover: rgba(47, 111, 237, 0.5);
+  --canvas-guide: #e91e63;
+  --canvas-frame-fill: #ffffff;
+  --canvas-frame-border: #9aa0a6;
+  --canvas-pin-open: #f9a825;
+  --canvas-pin-resolved: #9aa0a6;
+  --canvas-sticky-shadow: rgba(0, 0, 0, 0.12);
+  --canvas-vote: #e53935;
+
+  /* Radius */
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+
+  /* Spacing */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 16px;
+  --space-8: 24px;
+
+  /* Type */
+  --font: system-ui, sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+
+  /* Controls */
+  --control-height: 28px;
+  --control-height-sm: 22px;
+
+  /* Motion */
+  --duration-fast: 90ms;
+  --duration-base: 150ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}

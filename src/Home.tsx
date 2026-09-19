@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { boardLink } from './sync/api';
 import { type RecentBoard, forgetBoard, listRecentBoards } from './sync/recent';
+import { IconButton } from './ui';
 
 /** Landing page: boards opened in this browser, and a way to start a new one. */
 export function Home() {
@@ -32,9 +33,14 @@ export function Home() {
                   {formatWhen(b.openedAt)}
                 </span>
               </a>
-              <button type="button" aria-label={`Remove ${b.title || 'Untitled board'} from this list`} title="Remove from this list" onClick={() => remove(b.id)}>
-                ×
-              </button>
+              <IconButton
+                icon="close"
+                label={`Remove ${b.title || 'Untitled board'} from this list`}
+                variant="ghost"
+                size="sm"
+                title="Remove from this list"
+                onClick={() => remove(b.id)}
+              />
             </li>
           ))}
         </ul>

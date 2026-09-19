@@ -53,6 +53,7 @@ import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
+import { type CanvasTheme, LIGHT_CANVAS_THEME, resolveCanvasTheme } from '../render/theme';
 
 /** A comment pin as drawn on the canvas. */
 export interface Pin {
@@ -165,6 +166,8 @@ export class Editor {
   private pointerListeners = new Set<() => void>();
   private version = 0;
   private canvas: HTMLCanvasElement | null = null;
+  /** Canvas colours resolved from the CSS tokens; see src/render/theme.ts. */
+  theme: CanvasTheme = LIGHT_CANVAS_THEME;
   private measureCtx: CanvasRenderingContext2D | null = null;
   /** Text measurement for layout decisions; uses the board canvas, falls back to a rough estimate. */
   private readonly measure = (text: string, font: string): number => {
@@ -361,6 +364,16 @@ export class Editor {
 
   attachCanvas(canvas: HTMLCanvasElement | null): void {
     this.canvas = canvas;
+    if (canvas) this.refreshTheme();
+    this.requestRender();
+  }
+
+  /**
+   * Re-read the canvas colours from the stylesheet. Call after anything that
+   * changes which tokens apply, such as switching theme.
+   */
+  refreshTheme(): void {
+    this.theme = resolveCanvasTheme(this.canvas);
     this.requestRender();
   }
 
@@ -399,7 +412,7 @@ export class Editor {
       canvas.height = ph;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.lastRenderStats = renderBoard(ctx, this.scene, this.camera, w, h, this.overlay());
+    this.lastRenderStats = renderBoard(ctx, this.scene, this.camera, w, h, this.overlay(), this.theme);
     this.lastRenderMs = performance.now() - t0;
     return this.lastRenderMs;
   }
