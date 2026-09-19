@@ -15,6 +15,7 @@ export interface BoardInfo {
   viewToken?: string;
 }
 
+/** The sync server answered, and the answer was no. */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -24,10 +25,37 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Nothing is serving the API at this origin.
+ *
+ * This is not the same as a board being missing, and telling them apart
+ * matters: a static host with no sync server answers `/api/boards` with its
+ * own HTML 404, which read as "this board does not exist" and left the only
+ * way out — starting a new board — failing the same way. What separates them
+ * is the content type: the API always answers in JSON.
+ */
+export class NoSyncServerError extends Error {
+  constructor(readonly cause?: unknown) {
+    super('No sync server at this origin');
+  }
+}
+
+function isJSON(res: Response): boolean {
+  return (res.headers.get('content-type') ?? '').toLowerCase().includes('application/json');
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${SYNC_BASE}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
+  let res: Response;
+  try {
+    res = await fetch(`${SYNC_BASE}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
+  } catch (err) {
+    // Offline, DNS failure, the server refusing the connection.
+    throw new NoSyncServerError(err);
+  }
+  if (!isJSON(res)) throw new NoSyncServerError();
   const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  if (!res.ok) throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+  if (body === null) throw new NoSyncServerError();
+  if (!res.ok) throw new ApiError(res.status, body.error ?? `Request failed (${res.status})`);
   return body as T;
 }
 
