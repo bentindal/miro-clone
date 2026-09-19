@@ -157,6 +157,13 @@
   cursor: pointer;
 }
 
+/* Indeterminate: the selection does not agree on one value, so the control
+   must not look like it is showing one. */
+.ui-color[data-mixed],
+.ui-select[data-mixed] {
+  opacity: 0.55;
+}
+
 .ui-panel {
   display: flex;
   flex-direction: column;
