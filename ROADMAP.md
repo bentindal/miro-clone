@@ -18,6 +18,11 @@ shared by anonymous edit or view links. The server runs for free on Cloudflare
 Workers with one Durable Object per board; a Node/Postgres flavour exists for
 self-hosting.
 
+The interface itself is tracked separately in
+[UI-ROADMAP.md](UI-ROADMAP.md): the editor works but looks like a debug
+harness, and the parts that make it hard to restyle are also the parts that
+make it hard to extend.
+
 What is still thin:
 
 - **No accounts.** Links are the only credentials; the board list is per
@@ -51,12 +56,13 @@ Closes the remaining gap that makes the editor feel unfinished. Items marked
 done shipped in phase 1b.
 
 1. Floating property toolbar: colours, stroke, font, alignment, sticky colour,
-   connector style. (done)
+   connector style (done); schema-driven rendering is UI-2 in
+   [UI-ROADMAP.md](UI-ROADMAP.md).
 2. Connector routing: elbow and curved paths, snap to anchor points, labels,
    arrowhead options (done); connector-to-connector bends, obstacle avoidance.
 3. Snapping and smart guides, align and distribute, grid snap, resize
    snapping and equal-spacing guides (done).
-4. Sticky notes that auto-fit their text, tags on stickies, voting dots.
+4. Sticky notes that auto-fit their text and voting dots (done); tags.
 5. Rich text: bold, lists, links, in-place font sizing.
 6. Touch and pen input: two-finger pan and pinch (done); palm rejection,
    pressure width for the pen tool.

@@ -3,7 +3,8 @@
 An infinite collaborative whiteboard: real-time multi-user editing with
 presence, boards saved on a sync server and shared by edit or view links.
 [SPEC.md](SPEC.md) tracks what is built; every ticked item links to the
-Playwright test that proves it. What comes next is in [ROADMAP.md](ROADMAP.md).
+Playwright test that proves it. What comes next is in [ROADMAP.md](ROADMAP.md),
+and the interface work in [UI-ROADMAP.md](UI-ROADMAP.md).
 
 ## Stack
 
