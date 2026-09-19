@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { click, drawRect, openBoard, order, selectTool, selection } from './helpers';
+import { arrangeAction, click, drawRect, openBoard, order, selectTool, selection } from './helpers';
 
 test.describe('z-order', () => {
   test('bring forward, send backward, bring to front and send to back reorder the stack', async ({ page }) => {
@@ -22,9 +22,9 @@ test.describe('z-order', () => {
     expect(await order(page)).toEqual([b.id, c.id, a.id]);
     await page.keyboard.press('[');
     expect(await order(page)).toEqual([b.id, a.id, c.id]);
-    await page.locator('[data-action="send-to-back"]').click();
+    await arrangeAction(page, 'send-to-back');
     expect(await order(page)).toEqual([a.id, b.id, c.id]);
-    await page.locator('[data-action="bring-to-front"]').click();
+    await arrangeAction(page, 'bring-to-front');
     expect(await order(page)).toEqual([b.id, c.id, a.id]);
 
     // Now A is on top and receives the click at the overlap.

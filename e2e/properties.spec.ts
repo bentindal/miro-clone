@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { click, drag, drawRect, openBoard, placeSticky, selectTool, selectTool as tool, shapeById, shapesOf, typeAndCommit } from './helpers';
+import { boardAction, click, drag, drawRect, openBoard, openBoardMenu, placeSticky, selectTool, selectTool as tool, shapeById, shapesOf, typeAndCommit } from './helpers';
 
 test.describe('property editing', () => {
   test('fill, stroke and stroke width of a selected shape can be changed and undone', async ({ page }) => {
@@ -118,9 +118,10 @@ test.describe('property editing', () => {
     await bar.getByTestId('prop-width-1').click();
     const before = await shapeById(page, r.id);
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('[data-action="save-json"]').click();
+    await boardAction(page, 'save-json');
     const path = (await (await downloadPromise).path())!;
     await openBoard(page);
+    await openBoardMenu(page);
     await page.locator('[data-action="load-json"]').setInputFiles(path);
     await expect.poll(() => shapeById(page, r.id)).toEqual(before);
   });

@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { ANCHORS, ARROW_HEADS, CONNECTOR_STYLES, type Anchor, type ArrowHead, type ConnectorStyle, type Shape } from '../model/types';
 import type { Editor, StylePatch } from './Editor';
 import { useEditorVersion } from './useEditor';
 import { loadUser } from '../sync/session';
-import { Button, type IconName, IconButton, Select, Swatch } from '../ui';
+import { Button, type IconName, IconButton, Panel, Select, Swatch, useMeasure } from '../ui';
 
 export const PALETTE = ['#ffffff', '#222222', '#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#a5d6a7', '#90caf9'];
 export const STICKY_PALETTE = ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', '#ce93d8', '#ffffff'];
@@ -18,8 +19,23 @@ const ALIGNMENTS: { kind: 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bo
   { kind: 'bottom', label: 'Align bottom', icon: 'alignBottom' },
 ];
 
+/** Arranging the selection: no longer a permanent strip at the top of the app. */
+const ARRANGE: { id: string; label: string; icon: IconName; run: (e: Editor) => void; enabled: (e: Editor) => boolean }[] = [
+  { id: 'group', label: 'Group', icon: 'group', run: (e) => e.groupSelection(), enabled: (e) => e.selection.length >= 2 },
+  { id: 'ungroup', label: 'Ungroup', icon: 'ungroup', run: (e) => e.ungroupSelection(), enabled: (e) => e.selection.some((id) => e.scene.get(id)?.type === 'group') },
+  { id: 'bring-forward', label: 'Bring forward', icon: 'forward', run: (e) => e.bringForward(), enabled: () => true },
+  { id: 'send-backward', label: 'Send backward', icon: 'backward', run: (e) => e.sendBackward(), enabled: () => true },
+  { id: 'bring-to-front', label: 'Bring to front', icon: 'front', run: (e) => e.bringToFront(), enabled: () => true },
+  { id: 'send-to-back', label: 'Send to back', icon: 'back', run: (e) => e.sendToBack(), enabled: () => true },
+  { id: 'delete', label: 'Delete', icon: 'trash', run: (e) => e.deleteSelection(), enabled: () => true },
+];
+
+/** First-render estimate only; the bar measures itself once it is on screen. */
 const BAR_WIDTH = 520;
 const BAR_HEIGHT = 44;
+/** Gap between the bar and the selection, and the viewport edge. */
+const BAR_GAP = 16;
+const BAR_MARGIN = 8;
 
 /**
  * Floating toolbar above the selection for editing the properties of the
@@ -28,6 +44,21 @@ const BAR_HEIGHT = 44;
  */
 export function PropertyBar({ editor }: { editor: Editor }) {
   useEditorVersion(editor);
+  // The bar's width changes with the selection, so measure it rather than
+  // guessing; a guess that is too small lets it run off the right edge.
+  const [measure, size] = useMeasure({ w: BAR_WIDTH, h: BAR_HEIGHT });
+  const [arrangeOpen, setArrangeOpen] = useState(false);
+  const selectionKey = editor.selection.join(',');
+  // A menu opened for one selection has no business staying open for the next.
+  useEffect(() => setArrangeOpen(false), [selectionKey]);
+  useEffect(() => {
+    if (!arrangeOpen) return;
+    // The bar stops pointer events from reaching this listener, so it only
+    // fires for clicks outside the bar.
+    const close = () => setArrangeOpen(false);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [arrangeOpen]);
   if (editor.readOnly || editor.tool !== 'select' || editor.selection.length === 0 || editor.isDragging || editor.editing) return null;
   const frame = editor.selectionFrame;
   if (!frame) return null;
@@ -41,7 +72,6 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const topLevel = editor.scene.normalizeSelection(editor.selection);
   const canAlign = topLevel.length >= 2;
   const canDistribute = topLevel.length >= 3;
-  if (fillable.length + strokable.length + texts.length + connectors.length === 0 && !canAlign) return null;
 
   const stickies = leaves.filter((s) => s.type === 'sticky');
   const onlyStickies = fillable.length > 0 && fillable.every((s) => s.type === 'sticky');
@@ -64,14 +94,17 @@ export function PropertyBar({ editor }: { editor: Editor }) {
   const minX = Math.min(...hs.map((h) => h.x));
   const minY = Math.min(...hs.map((h) => h.y));
   const maxY = Math.max(...hs.map((h) => h.y));
-  const left = Math.max(8, Math.min(minX, editor.viewport.w - BAR_WIDTH - 8));
-  const above = minY - BAR_HEIGHT - 16;
-  const top = above >= 8 ? above : Math.min(maxY + 16, editor.viewport.h - BAR_HEIGHT - 8);
+  // Stay clear of the rail on the left and the dock on the right.
+  const minLeft = editor.insets.left + BAR_MARGIN;
+  const maxLeft = editor.viewport.w - editor.insets.right - size.w - BAR_MARGIN;
+  const left = maxLeft < minLeft ? minLeft : Math.max(minLeft, Math.min(minX, maxLeft));
+  const above = minY - size.h - BAR_GAP;
+  const top = above >= BAR_MARGIN ? above : Math.min(maxY + BAR_GAP, editor.viewport.h - size.h - BAR_MARGIN);
 
   const apply = (patch: StylePatch) => editor.setStyle(patch);
 
   return (
-    <div className="property-bar" data-testid="property-bar" role="toolbar" aria-label="Properties" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
+    <div ref={measure} className="property-bar" data-testid="property-bar" role="toolbar" aria-label="Properties" style={{ left, top }} onPointerDown={(e) => e.stopPropagation()}>
       {fillable.length > 0 && (
         <div className="prop-group" aria-label="Fill">
           <span className="prop-label">Fill</span>
@@ -190,6 +223,41 @@ export function PropertyBar({ editor }: { editor: Editor }) {
           )}
         </div>
       )}
+      <div className="prop-group prop-menu" aria-label="Arrange">
+        <IconButton
+          size="sm"
+          icon="more"
+          label="Arrange"
+          keepFocus
+          data-action="arrange-menu"
+          aria-expanded={arrangeOpen}
+          active={arrangeOpen}
+          toggle="outline"
+          onClick={() => setArrangeOpen((o) => !o)}
+        />
+        {arrangeOpen && (
+          <Panel className="prop-menu-panel" data-testid="arrange-menu" role="menu">
+            {ARRANGE.map((a) => (
+              <Button
+                key={a.id}
+                size="sm"
+                variant="ghost"
+                icon={a.icon}
+                role="menuitem"
+                keepFocus
+                data-action={a.id}
+                disabled={!a.enabled(editor)}
+                onClick={() => {
+                  a.run(editor);
+                  setArrangeOpen(false);
+                }}
+              >
+                {a.label}
+              </Button>
+            ))}
+          </Panel>
+        )}
+      </div>
     </div>
   );
 }

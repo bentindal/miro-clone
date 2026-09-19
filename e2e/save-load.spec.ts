@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { dblclick, drag, drawRect, openBoard, placeSticky, selectTool, shapes, typeAndCommit } from './helpers';
+import { boardAction, dblclick, drag, drawRect, openBoard, openBoardMenu, placeSticky, selectTool, shapes, typeAndCommit } from './helpers';
 
 test.describe('save and load board JSON', () => {
   test('saving downloads JSON and loading it restores every object', async ({ page }) => {
@@ -21,7 +21,7 @@ test.describe('save and load board JSON', () => {
     expect(saved.map((s) => s.type).sort()).toEqual(['connector', 'group', 'pen', 'rect', 'rect', 'sticky']);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('[data-action="save-json"]').click();
+    await boardAction(page, 'save-json');
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe('board.json');
     const path = (await download.path())!;
@@ -33,6 +33,7 @@ test.describe('save and load board JSON', () => {
     // A brand new board, then load the file into it.
     await openBoard(page);
     expect(await shapes(page)).toEqual([]);
+    await openBoardMenu(page);
     await page.locator('[data-action="load-json"]').setInputFiles(path);
     await expect.poll(() => shapes(page)).toEqual(saved);
     const connector = (await shapes(page)).find((s) => s.type === 'connector')!;
@@ -48,6 +49,7 @@ test.describe('save and load board JSON', () => {
       message = d.message();
       void d.dismiss();
     });
+    await openBoardMenu(page);
     await page.locator('[data-action="load-json"]').setInputFiles({
       name: 'bad.json',
       mimeType: 'application/json',

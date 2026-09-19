@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './editor/Board';
 import { Editor } from './editor/Editor';
-import { Toolbar } from './editor/Toolbar';
+import { Dock } from './editor/Dock';
+import { ToolRail } from './editor/ToolRail';
+import { TopBar } from './editor/TopBar';
+import { ZoomCluster } from './editor/ZoomCluster';
 import { Home } from './Home';
 import { ApiError, createBoard, getBoard, parseBoardLocation } from './sync/api';
 import { rememberBoard, updateRecentTitle } from './sync/recent';
@@ -99,13 +102,20 @@ export default function App() {
 
   return (
     <div className="app">
-      <Toolbar editor={editor} session={boot.kind === 'online' ? boot.session : null} mode={boot.kind} />
+      <TopBar editor={editor} session={boot.kind === 'online' ? boot.session : null} mode={boot.kind} />
       {boot.kind === 'loading' ? (
         <div className="boot-message" data-testid="boot-loading">
           Opening board…
         </div>
       ) : (
-        <Board editor={editor} />
+        // The canvas fills the workspace; the rail, the view controls and the
+        // dock float above it rather than eating into it.
+        <div className="workspace">
+          <Board editor={editor} />
+          <ToolRail editor={editor} />
+          <ZoomCluster editor={editor} />
+          <Dock editor={editor} />
+        </div>
       )}
     </div>
   );
