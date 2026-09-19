@@ -24,8 +24,9 @@ test.describe('theme', () => {
     const theme = await page.evaluate(() => (window as never as { __wb: { theme: () => Record<string, string> } }).__wb.theme());
     expect(theme.background).toBe('#f4f5f7');
     expect(theme.accent).toBe('#2f6fed');
-    // (50, 50) sits between grid dots, which are drawn every 100px from the origin.
-    expect(await pixel(page, 50, 50)).toBe('244,245,247');
+    // Grid dots sit on multiples of the level's spacing from the origin; this
+    // point is on no plausible one.
+    expect(await pixel(page, 57, 43)).toBe('244,245,247');
 
     // One declaration moves both surfaces.
     await page.evaluate(() => {
@@ -37,7 +38,7 @@ test.describe('theme', () => {
     const after = await page.evaluate(() => (window as never as { __wb: { theme: () => Record<string, string> } }).__wb.theme());
     expect(after.background).toBe('#101214');
     expect(after.accent).toBe('#ff00aa');
-    expect(await pixel(page, 50, 50)).toBe('16,18,20');
+    expect(await pixel(page, 57, 43)).toBe('16,18,20');
 
     // The DOM followed the same declaration: the active tool button is accent-filled.
     // Polled because the button transitions its background over --duration-fast.

@@ -14,8 +14,15 @@ import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
 import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
 import { type FitResult, STICKY_PAD, fitText } from '../model/textFit';
 import { type CanvasTheme, LIGHT_CANVAS_THEME } from './theme';
+import { gridLevels } from './grid';
 
-export const HANDLE_SIZE = 8;
+/** Drawn size of a resize handle, in screen pixels. */
+export const HANDLE_SIZE = 7;
+/**
+ * How close the pointer has to be to grab one. Deliberately larger than the
+ * handle: shrinking the drawn size should not make the target harder to hit.
+ */
+export const HANDLE_HIT_RADIUS = 9;
 /** Below this zoom, same-style shapes are merged into shared paths. */
 export const BATCH_ZOOM = 0.3;
 /** Largest number of shapes merged into one path; very large paths rasterise slowly. */
@@ -215,7 +222,9 @@ export function renderBoard(
     }
   }
   if (overlay.hoverId && !overlay.selection.includes(overlay.hoverId) && scene.has(overlay.hoverId)) {
-    drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, theme.hover, 1);
+    // Held off the shape's own edge, so "this is what a click would take" does
+    // not look like the selection frame, which sits exactly on the bounds.
+    drawBoundsOutline(ctx, scene.bounds(overlay.hoverId), cam, theme.hover, 1, 3);
   }
   if (overlay.guides.length) {
     ctx.strokeStyle = theme.guide;
@@ -264,14 +273,10 @@ export function renderBoard(
         }
         ctx.stroke();
         const label = `${Math.round(to - from)}`;
-        if (g.axis === 'x') ctx.fillText(label, (a.x + b.x) / 2, a.y - 4);
-        else {
-          ctx.save();
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, a.x + 7, (a.y + b.y) / 2);
-          ctx.restore();
-        }
+        if (g.axis === 'x') drawMeasureChip(ctx, label, (a.x + b.x) / 2, a.y - 9, theme);
+        else drawMeasureChip(ctx, label, a.x + 9 + ctx.measureText(label).width / 2, (a.y + b.y) / 2, theme);
+        ctx.strokeStyle = theme.guide;
+        ctx.fillStyle = theme.guide;
       }
     }
     ctx.textAlign = 'start';
@@ -300,25 +305,52 @@ export function renderBoard(
   return stats;
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, cam: Camera, width: number, height: number, theme: CanvasTheme): void {
-  let step = 100 * cam.zoom;
-  while (step < 24) step *= 4;
-  while (step > 200) step /= 4;
-  ctx.fillStyle = theme.grid;
-  const ox = ((cam.tx % step) + step) % step;
-  const oy = ((cam.ty % step) + step) % step;
-  for (let x = ox; x < width; x += step) {
-    for (let y = oy; y < height; y += step) {
-      ctx.fillRect(x - 1, y - 1, 2, 2);
-    }
-  }
+/** Edge length of a grid dot, in screen pixels. */
+const DOT = 1.5;
+
+/** A measurement, on a chip so it stays readable over whatever it crosses. */
+function drawMeasureChip(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, theme: CanvasTheme): void {
+  ctx.save();
+  ctx.font = '11px system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 8;
+  const h = 14;
+  ctx.fillStyle = theme.guide;
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 3);
+  ctx.fill();
+  ctx.fillStyle = theme.surface;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy + 0.5);
+  ctx.restore();
 }
 
-function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Box, cam: Camera, color: string, width: number): void {
+function drawGrid(ctx: CanvasRenderingContext2D, cam: Camera, width: number, height: number, theme: CanvasTheme): void {
+  ctx.save();
+  ctx.fillStyle = theme.grid;
+  // Coarsest first, so the finer level's alpha lands on top of it rather than
+  // under it. One path per level costs one fill instead of thousands.
+  for (const level of gridLevels(cam.zoom)) {
+    ctx.globalAlpha = level.alpha;
+    ctx.beginPath();
+    const ox = ((cam.tx % level.step) + level.step) % level.step;
+    const oy = ((cam.ty % level.step) + level.step) % level.step;
+    for (let x = ox; x < width; x += level.step) {
+      for (let y = oy; y < height; y += level.step) {
+        ctx.rect(Math.round(x) - DOT / 2, Math.round(y) - DOT / 2, DOT, DOT);
+      }
+    }
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** `grow` pushes the outline out from the bounds, in screen pixels. */
+function drawBoundsOutline(ctx: CanvasRenderingContext2D, b: Box, cam: Camera, color: string, width: number, grow = 0): void {
   const tl = worldToScreen(cam, { x: b.x, y: b.y });
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
-  ctx.strokeRect(tl.x, tl.y, b.w * cam.zoom, b.h * cam.zoom);
+  ctx.strokeRect(tl.x - grow, tl.y - grow, b.w * cam.zoom + grow * 2, b.h * cam.zoom + grow * 2);
 }
 
 function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved: boolean, active: boolean, theme: CanvasTheme): void {
@@ -327,6 +359,9 @@ function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved:
   ctx.fillStyle = resolved ? theme.pinResolved : theme.pinOpen;
   ctx.strokeStyle = theme.surface;
   ctx.lineWidth = 2;
+  ctx.shadowColor = theme.shadow;
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 1;
   // Teardrop: a round body up and to the right of the spot, with a tip pointing at it.
   const cx = PIN_RADIUS * 0.6;
   const cy = -PIN_RADIUS * 0.6;
@@ -343,6 +378,9 @@ function drawPin(ctx: CanvasRenderingContext2D, p: Vec, count: number, resolved:
     ctx.arc(PIN_RADIUS * 0.6, -PIN_RADIUS * 0.6, PIN_RADIUS + 3, 0, Math.PI * 2);
     ctx.stroke();
   }
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
   ctx.fillStyle = theme.surface;
   ctx.font = 'bold 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
@@ -357,6 +395,9 @@ function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer, theme
   ctx.fillStyle = peer.color;
   ctx.strokeStyle = theme.surface;
   ctx.lineWidth = 1.5;
+  ctx.shadowColor = theme.shadow;
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 1;
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(0, 16);
@@ -373,8 +414,11 @@ function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer, theme
   const w = ctx.measureText(peer.name).width + 10;
   ctx.fillStyle = peer.color;
   ctx.beginPath();
-  ctx.roundRect(12, 16, w, 18, 4);
+  ctx.roundRect(12, 16, w, 18, 5);
   ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
   ctx.fillStyle = theme.surface;
   ctx.fillText(peer.name, 17, 25);
   ctx.restore();
@@ -383,7 +427,7 @@ function drawPeerCursor(ctx: CanvasRenderingContext2D, p: Vec, peer: Peer, theme
 function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame, theme: CanvasTheme): void {
   const h = f.handles;
   ctx.strokeStyle = theme.accent;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(h.nw.x, h.nw.y);
   ctx.lineTo(h.ne.x, h.ne.y);
@@ -396,13 +440,16 @@ function drawSelectionFrame(ctx: CanvasRenderingContext2D, f: SelectionFrame, th
   ctx.lineTo(h.rotate.x, h.rotate.y);
   ctx.stroke();
   ctx.fillStyle = theme.surface;
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
   for (const name of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const) {
     const p = h[name];
-    ctx.fillRect(p.x - HANDLE_SIZE / 2, p.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-    ctx.strokeRect(p.x - HANDLE_SIZE / 2, p.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    ctx.roundRect(p.x - HANDLE_SIZE / 2, p.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, 2);
   }
+  ctx.fill();
+  ctx.stroke();
   ctx.beginPath();
-  ctx.arc(h.rotate.x, h.rotate.y, HANDLE_SIZE / 2 + 1, 0, Math.PI * 2);
+  ctx.arc(h.rotate.x, h.rotate.y, HANDLE_SIZE / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 }

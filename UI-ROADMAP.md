@@ -25,6 +25,7 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   same object.
 - **The canvas chrome is functional, not designed.** Selection handles,
   guides, comment pins and peer cursors each pick their own colour inline.
+  *(Colours fixed in UI-0, the drawing itself in UI-3.)*
 - **No theme.** Sixty hardcoded hex values in `src/app.css`, twenty-four more
   in `src/render/renderer.ts`. Dark mode is currently impossible without a
   find-and-replace across two languages. *(Fixed in UI-0: both are zero.)*
@@ -174,18 +175,48 @@ disagreeing selection reports mixed — and by `e2e/properties.spec.ts`, which
 checks the mixed swatches and the `Mixed` dropdown in the browser and that
 picking a value settles the whole selection.
 
-## Phase UI-3: canvas chrome
+## Phase UI-3: canvas chrome — done
 
 Now that the renderer takes a theme, make the canvas look deliberate.
 
-1. **Selection**: thinner frame, smaller handles that scale with zoom, a
-   hover state distinct from selection.
-2. **Guides and spacing markers**: read from theme, consistent weight.
-3. **Cursors**: proper SVG cursors per tool rather than browser defaults.
-4. **Comment pins and peer cursors**: consistent shape language with the DOM
-   chrome.
-5. **Grid**: subtler dots, fading out as zoom drops rather than snapping
-   between densities.
+1. **Selection.** [x] Frame down from 1.5px to 1px, handles from an 8px square
+   to a 7px rounded one, and the grab radius split out as `HANDLE_HIT_RADIUS`
+   so shrinking what is drawn does not shrink what can be hit. The hover
+   outline is now held 3px off the shape's own edge, so "a click would take
+   this" no longer looks like the selection frame, which sits on the bounds.
+   *Not done as written:* handles do not "scale with zoom". They are drawn in
+   screen space and always were, which is correct — a handle that grew with
+   zoom would swallow the shape. The real problem was that they were too big
+   at any zoom.
+   *Proved by* `e2e/chrome.spec.ts`, which grabs a handle from 6px outside the
+   drawn square and resizes, and checks that 12px out marquees instead — so
+   the radius is pinned from both sides rather than just made generous.
+2. **Guides and spacing markers.** [x] Already themed since UI-0; the
+   measurement labels now sit on a chip so they stay readable over whatever
+   they cross.
+3. **Cursors.** [x] `src/editor/cursors.ts` draws one per tool: a crosshair
+   with the tool's mark, stroked twice so it has a halo and reads over any
+   background, with both colours taken from the canvas theme so it follows a
+   theme change instead of disappearing into it. Select and hand keep the
+   browser's arrow and grab hand, which people already read correctly.
+   *Proved by* `src/editor/__tests__/cursors.test.ts` (every drawing tool has
+   its own, the hotspot is the crosshair rather than the image corner, both
+   colours come from the theme, the payload is URL-encoded so the data URL
+   survives the characters SVG needs) and `e2e/chrome.spec.ts`, which reads
+   the computed cursor off the board for every tool.
+4. **Comment pins and peer cursors.** [x] Both now cast the shadow the DOM
+   chrome does, from a `--canvas-shadow` token, and the peer name chip uses
+   the same corner radius as the panels.
+5. **Grid.** [x] `src/render/grid.ts` replaces the fixed-step grid. Two nested
+   levels are drawn: a coarse one at full strength and the level four times
+   finer fading in as it becomes legible. Because every coarse dot is also a
+   fine dot, nothing pops when the levels shift.
+   *Proved by* `src/render/__tests__/grid.test.ts`, which walks the zoom range
+   and measures the largest change in any dot's darkness between adjacent
+   steps: **1.0 for the old fixed-step grid, 0.06 for this one** — and that
+   0.06 is the point where the fine level is dropped rather than drawn at an
+   invisible opacity across a few thousand dots. The old grid is in the test
+   as a guard, so the bound cannot quietly stop meaning anything.
 
 ## Phase UI-4: motion and feedback
 
@@ -233,11 +264,11 @@ Now that the renderer takes a theme, make the canvas look deliberate.
 ## Sequencing
 
 UI-0 and UI-1 are the ones that change the impression, and UI-2 is the one
-that changes the cost of everything after. All three are done, so the block
-that was worth doing together is complete. UI-3 onwards can be interleaved
-with feature work, and the phase 3 features still outstanding in
-[SPEC.md](SPEC.md) (rich text, minimap, image upload) now have a shell, a
-set of primitives and a property schema to land in rather than add to.
+that changes the cost of everything after. Those three and UI-3 are done.
+UI-4 onwards can be interleaved with feature work, and the phase 3 features
+still outstanding in [SPEC.md](SPEC.md) (rich text, minimap, image upload)
+now have a shell, a set of primitives, a property schema and a themed canvas
+to land in rather than add to.
 
 The phase 3 feature work in [SPEC.md](SPEC.md) (rich text, minimap, image
 upload) should land after UI-1, so each new surface uses the shell and the

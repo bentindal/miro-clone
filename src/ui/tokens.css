@@ -49,6 +49,7 @@
   --canvas-pin-resolved: #9aa0a6;
   --canvas-sticky-shadow: rgba(0, 0, 0, 0.12);
   --canvas-vote: #e53935;
+  --canvas-shadow: rgba(0, 0, 0, 0.18);
 
   /* Radius */
   --radius-sm: 5px;

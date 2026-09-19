@@ -27,6 +27,8 @@ export interface CanvasTheme {
   pinResolved: string;
   stickyShadow: string;
   vote: string;
+  /** Cast by pins and peer cursors, so they read as raised like the DOM chrome. */
+  shadow: string;
 }
 
 /** CSS custom property backing each key. Kept in step by theme.test.ts. */
@@ -46,6 +48,7 @@ export const CANVAS_TOKENS: Record<keyof CanvasTheme, string> = {
   pinResolved: '--canvas-pin-resolved',
   stickyShadow: '--canvas-sticky-shadow',
   vote: '--canvas-vote',
+  shadow: '--canvas-shadow',
 };
 
 /**
@@ -69,6 +72,7 @@ export const LIGHT_CANVAS_THEME: CanvasTheme = {
   pinResolved: '#9aa0a6',
   stickyShadow: 'rgba(0, 0, 0, 0.12)',
   vote: '#e53935',
+  shadow: 'rgba(0, 0, 0, 0.18)',
 };
 
 const KEYS = Object.keys(CANVAS_TOKENS) as (keyof CanvasTheme)[];
