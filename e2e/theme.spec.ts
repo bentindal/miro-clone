@@ -50,7 +50,7 @@ test.describe('theme', () => {
     await openBoard(page);
     const missing = await page.evaluate(() => {
       const out: string[] = [];
-      for (const el of document.querySelectorAll<HTMLElement>('.toolbar [data-tool], .toolbar [data-action]')) {
+      for (const el of document.querySelectorAll<HTMLElement>('.tool-rail [data-tool], .zoom-cluster [data-action], .dock-tabs [data-action]')) {
         const id = el.getAttribute('data-tool') ?? el.getAttribute('data-action') ?? '?';
         // Load is a file input inside a label styled as a button, so look at the control.
         const control = el.closest('.ui-button') ?? el;

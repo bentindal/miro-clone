@@ -124,6 +124,13 @@ const GLYPHS = {
     </>
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </>
+  ),
   check: <path d="m5 13 4.5 4.5L19 7" />,
   alignLeft: <path d="M4 3v18M7.5 7.5h10M7.5 16.5h6" />,
   alignCenterX: <path d="M12 3v18M7 7.5h10M9 16.5h6" />,

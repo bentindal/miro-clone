@@ -3,37 +3,32 @@ import type { CommentThread } from '../sync/comments';
 import { loadUser } from '../sync/session';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
-import { Button, IconButton, Panel } from '../ui';
+import { Button } from '../ui';
+
+/** Header control: whether resolved threads are listed. */
+export function ShowResolvedToggle({ editor }: { editor: Editor }) {
+  useEditorVersion(editor);
+  return (
+    <label className="show-resolved">
+      <input type="checkbox" data-testid="show-resolved" checked={editor.showResolved} onChange={(e) => editor.setShowResolved(e.target.checked)} /> Show resolved
+    </label>
+  );
+}
 
 /**
- * Side panel: compose a pending comment, browse threads, reply, resolve.
- * The author is read from the stored identity at post time, which renaming
- * in the header keeps current, online or not.
+ * Body of the comments panel: compose a pending comment, browse threads,
+ * reply, resolve. The author is read from the stored identity at post time,
+ * which renaming in the top bar keeps current, online or not. The dock
+ * supplies the surrounding panel; see `registerPanels.tsx`.
  */
-export function CommentsPanel({ editor }: { editor: Editor }) {
+export function CommentsBody({ editor }: { editor: Editor }) {
   useEditorVersion(editor);
-  if (!editor.commentsOpen) return null;
   const author = () => loadUser();
   const threads = editor.comments.list().filter((t) => editor.showResolved || !t.resolved);
   const readOnly = editor.readOnly;
 
   return (
-    <Panel
-      className="comments-panel"
-      data-testid="comments-panel"
-      role="complementary"
-      aria-label="Comments"
-      onPointerDown={(e) => e.stopPropagation()}
-      header={
-        <>
-          <strong>Comments</strong>
-          <label className="show-resolved">
-            <input type="checkbox" data-testid="show-resolved" checked={editor.showResolved} onChange={(e) => editor.setShowResolved(e.target.checked)} /> Show resolved
-          </label>
-          <IconButton icon="close" label="Close comments" variant="ghost" size="sm" onClick={() => editor.setCommentsOpen(false)} />
-        </>
-      }
-    >
+    <div className="comments-body" data-testid="comments-panel">
       {editor.pendingComment && (
         <Composer
           testId="comment-composer"
@@ -53,7 +48,7 @@ export function CommentsPanel({ editor }: { editor: Editor }) {
           <ThreadView key={t.id} thread={t} editor={editor} author={author} readOnly={readOnly} active={t.id === editor.activeThreadId} />
         ))}
       </ul>
-    </Panel>
+    </div>
   );
 }
 

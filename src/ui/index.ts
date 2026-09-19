@@ -6,3 +6,4 @@ export { Panel, type PanelProps } from './Panel';
 export { Select, type SelectProps } from './Select';
 export { Swatch, type SwatchProps } from './Swatch';
 export { Tooltip, type TooltipProps } from './Tooltip';
+export { useMeasure, type Size } from './useMeasure';

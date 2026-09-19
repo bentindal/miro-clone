@@ -222,3 +222,32 @@ export async function syncInfo(page: Page): Promise<SyncInfo | null> {
 export async function peers(page: Page): Promise<{ clientId: number; name: string; color: string; cursor: Pt | null; selection: string[] }[]> {
   return page.evaluate(() => (window as unknown as { __wb: { peers: () => { clientId: number; name: string; color: string; cursor: Pt | null; selection: string[] }[] } }).__wb.peers());
 }
+
+/**
+ * Open the board menu in the top bar. File actions live there now; the top
+ * bar itself carries only board identity and collaboration.
+ */
+export async function openBoardMenu(page: Page): Promise<void> {
+  if (await page.getByTestId('board-menu').isVisible().catch(() => false)) return;
+  await page.locator('[data-action="board-menu"]').click();
+  await expect(page.getByTestId('board-menu')).toBeVisible();
+}
+
+/** Open the board menu and click one of its actions. */
+export async function boardAction(page: Page, action: string): Promise<void> {
+  await openBoardMenu(page);
+  await page.locator(`[data-action="${action}"]`).click();
+}
+
+/**
+ * Open the arrange menu on the property bar and click one of its actions.
+ * Z-order, grouping and delete live there now: selection actions belong with
+ * the selection, not in a permanent strip at the top of the app.
+ */
+export async function arrangeAction(page: Page, action: string): Promise<void> {
+  if (!(await page.getByTestId('arrange-menu').isVisible().catch(() => false))) {
+    await page.locator('[data-action="arrange-menu"]').click();
+    await expect(page.getByTestId('arrange-menu')).toBeVisible();
+  }
+  await page.locator(`[data-action="${action}"]`).click();
+}

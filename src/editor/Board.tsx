@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor, Modifiers } from './Editor';
-import { CommentsPanel } from './CommentsPanel';
 import { PropertyBar } from './PropertyBar';
 import { TextEditorOverlay } from './TextEditorOverlay';
 import { useEditorVersion } from './useEditor';
@@ -166,7 +165,6 @@ export function Board({ editor }: { editor: Editor }) {
       />
       <TextEditorOverlay editor={editor} />
       <PropertyBar editor={editor} />
-      <CommentsPanel editor={editor} />
       <p id="board-help" className="sr-only">
         Tab and Shift+Tab move between objects, Enter edits the selected text, arrow keys nudge, Delete removes, Escape clears the selection. Letter keys pick tools.
       </p>

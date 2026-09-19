@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { bounds, click, drag, drawRect, openBoard, selectTool, selection, shapes, shapesOf } from './helpers';
+import { arrangeAction, bounds, click, drag, drawRect, openBoard, selectTool, selection, shapes, shapesOf } from './helpers';
 
 test.describe('group and ungroup', () => {
   test('grouped objects select and move as one, ungroup restores them', async ({ page }) => {
@@ -44,17 +44,17 @@ test.describe('group and ungroup', () => {
     await drawRect(ctx, { x: 500, y: 100 }, { x: 600, y: 200 });
     await selectTool(page, 'select');
     await drag(ctx, { x: 50, y: 50 }, { x: 450, y: 250 });
-    await page.locator('[data-action="group"]').click();
+    await arrangeAction(page, 'group');
     const [inner] = await shapesOf(page, 'group');
     await drag(ctx, { x: 50, y: 50 }, { x: 650, y: 250 });
-    await page.locator('[data-action="group"]').click();
+    await arrangeAction(page, 'group');
     const groups = await shapesOf(page, 'group');
     expect(groups).toHaveLength(2);
     const outer = groups.find((g) => g.id !== inner.id)!;
     expect(groups.find((g) => g.id === inner.id)?.parentId).toBe(outer.id);
     await click(ctx, { x: 150, y: 150 });
     expect(await selection(page)).toEqual([outer.id]);
-    await page.locator('[data-action="ungroup"]').click();
+    await arrangeAction(page, 'ungroup');
     expect(await shapesOf(page, 'group')).toHaveLength(1);
     expect((await shapes(page)).filter((s) => s.parentId === inner.id)).toHaveLength(2);
   });

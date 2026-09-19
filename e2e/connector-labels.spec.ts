@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { type Browser, type Page } from '@playwright/test';
-import { click, dblclick, drag, drawRect, openBoard, selectTool, selection, shapeById, shapesOf } from './helpers';
+import { boardAction, click, dblclick, drag, drawRect, openBoard, openBoardMenu, selectTool, selection, shapeById, shapesOf } from './helpers';
 
 async function joinAs(browser: Browser, url: string, name: string): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -69,9 +69,10 @@ test.describe('connector labels and arrowheads', () => {
 
     const before = await shapeById(page, k.id);
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('[data-action="save-json"]').click();
+    await boardAction(page, 'save-json');
     const path = (await (await downloadPromise).path())!;
     await openBoard(page);
+    await openBoardMenu(page);
     await page.locator('[data-action="load-json"]').setInputFiles(path);
     await expect.poll(() => shapeById(page, k.id)).toEqual(before);
   });

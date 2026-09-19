@@ -5,7 +5,7 @@ export interface TooltipProps {
   label: string;
   /** Keyboard shortcut, shown as a key cap. */
   shortcut?: string;
-  placement?: 'top' | 'bottom';
+  placement?: 'top' | 'bottom' | 'left' | 'right';
   children: ReactNode;
 }
 

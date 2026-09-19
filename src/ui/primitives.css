@@ -250,6 +250,21 @@
   bottom: calc(100% + var(--space-2));
 }
 
+.ui-tooltip-anchor[data-placement='right'] .ui-tooltip,
+.ui-tooltip-anchor[data-placement='left'] .ui-tooltip {
+  top: 50%;
+  left: auto;
+  transform: translateY(-50%);
+}
+
+.ui-tooltip-anchor[data-placement='right'] .ui-tooltip {
+  left: calc(100% + var(--space-2));
+}
+
+.ui-tooltip-anchor[data-placement='left'] .ui-tooltip {
+  right: calc(100% + var(--space-2));
+}
+
 .ui-tooltip-anchor:hover .ui-tooltip,
 .ui-tooltip-anchor:focus-within .ui-tooltip {
   opacity: 1;

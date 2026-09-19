@@ -13,41 +13,137 @@
   font-family: var(--font);
 }
 
-.toolbar {
+.top-bar {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
+  gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-5);
   background: var(--surface);
   border-bottom: 1px solid var(--border-subtle);
   user-select: none;
-  z-index: 2;
+  z-index: 5;
 }
 
-.toolbar-group {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.toolbar .zoom {
-  min-width: 48px;
-  text-align: center;
-  font-size: var(--text-md);
-  font-variant-numeric: tabular-nums;
+.top-bar-spacer {
+  flex: 1;
 }
 
 .file-button input {
   display: none;
 }
 
-.board {
+/* The canvas fills this box; the rail, the view controls and the dock float
+   above it, so nothing has to be reserved for them. */
+.workspace {
   position: relative;
   flex: 1;
   min-height: 0;
+}
+
+.board {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   touch-action: none;
+}
+
+.tool-rail,
+.zoom-cluster {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  user-select: none;
+  z-index: 3;
+}
+
+.tool-rail {
+  left: var(--space-6);
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+}
+
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.zoom-cluster {
+  left: var(--space-6);
+  bottom: var(--space-6);
+}
+
+.zoom {
+  min-width: 46px;
+  text-align: center;
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.dock {
+  position: absolute;
+  right: var(--space-6);
+  top: var(--space-6);
+  bottom: var(--space-6);
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.dock > * {
+  pointer-events: auto;
+}
+
+.dock-tabs {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.dock-panel {
+  width: 320px;
+  font-size: var(--text-md);
+}
+
+.comments-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.board-menu {
+  position: absolute;
+  top: 100%;
+  right: var(--space-5);
+  margin-top: var(--space-3);
+  min-width: 190px;
+  padding: var(--space-2);
+  gap: var(--space-1);
+  z-index: 6;
+}
+
+.board-menu .ui-button,
+.board-menu .file-button {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .board canvas {
@@ -117,6 +213,25 @@
   padding-left: var(--space-5);
 }
 
+.prop-menu {
+  position: relative;
+}
+
+.prop-menu-panel {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  right: 0;
+  min-width: 180px;
+  padding: var(--space-2);
+  gap: var(--space-1);
+  z-index: 6;
+}
+
+.prop-menu-panel .ui-button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
 .prop-label {
   color: var(--text-muted);
   margin-right: var(--space-1);
@@ -126,11 +241,6 @@
   display: block;
   width: 16px;
   background: var(--text);
-}
-
-.board-header {
-  position: relative;
-  flex-wrap: wrap;
 }
 
 .board-title {
@@ -202,8 +312,9 @@
 .share-panel {
   position: absolute;
   top: 100%;
-  right: 0;
+  right: var(--space-5);
   margin-top: var(--space-3);
+  z-index: 6;
   width: 420px;
   padding: var(--space-6);
   gap: var(--space-5);
@@ -315,16 +426,6 @@
 .board-meta {
   font-size: var(--text-sm);
   color: var(--text-muted);
-}
-
-.comments-panel {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  bottom: var(--space-4);
-  width: 320px;
-  z-index: 4;
-  font-size: var(--text-md);
 }
 
 .show-resolved {

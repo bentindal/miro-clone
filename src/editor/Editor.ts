@@ -53,6 +53,7 @@ import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
+import { type Tool, TOOL_BY_KEY } from './tools';
 import { type CanvasTheme, LIGHT_CANVAS_THEME, resolveCanvasTheme } from '../render/theme';
 
 /** A comment pin as drawn on the canvas. */
@@ -75,9 +76,10 @@ export interface Peer {
   selection: Id[];
 }
 
-export type Tool = 'select' | 'hand' | 'rect' | 'ellipse' | 'line' | 'sticky' | 'text' | 'pen' | 'connector' | 'frame' | 'comment';
+export { type Tool, TOOLS } from './tools';
 
-export const TOOLS: Tool[] = ['select', 'hand', 'rect', 'ellipse', 'line', 'sticky', 'text', 'pen', 'connector', 'frame', 'comment'];
+/** Id the comments panel registers itself under in the dock. */
+export const COMMENTS_PANEL = 'comments';
 
 /** Screen-pixel radius of a comment pin. */
 export const PIN_RADIUS = 11;
@@ -130,7 +132,8 @@ export class Editor {
   activeThreadId: string | null = null;
   /** A comment being composed that has no message yet. */
   pendingComment: { shapeId: Id | null; x: number; y: number } | null = null;
-  commentsOpen = false;
+  /** Panel open in the dock, by its registered id, or null for none. */
+  openPanel: string | null = null;
   showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
@@ -138,6 +141,13 @@ export class Editor {
   peers: Peer[] = [];
   /** Last known pointer position in world coordinates, for presence. */
   pointerWorld: Vec | null = null;
+  /**
+   * Width in pixels the floating chrome takes off each side of the canvas.
+   * The rail and the dock report their own footprint, so anything that has to
+   * stay clear of them (the property bar today) does not need to know what is
+   * there.
+   */
+  insets: { left: number; right: number } = { left: 0, right: 0 };
   camera: Camera = { tx: 0, ty: 0, zoom: 1 };
   selection: Id[] = [];
   tool: Tool = 'select';
@@ -229,20 +239,31 @@ export class Editor {
     return null;
   }
 
+  /** True while the comments panel is the one open in the dock. */
+  get commentsOpen(): boolean {
+    return this.openPanel === COMMENTS_PANEL;
+  }
+
   openThread(id: string | null): void {
     this.activeThreadId = id;
     this.pendingComment = null;
-    if (id) this.commentsOpen = true;
+    if (id) this.openPanel = COMMENTS_PANEL;
     this.notify();
   }
 
-  setCommentsOpen(open: boolean): void {
-    this.commentsOpen = open;
-    if (!open) {
+  /** Show a registered panel in the dock, or close the dock with null. */
+  setOpenPanel(id: string | null): void {
+    const wasComments = this.commentsOpen;
+    this.openPanel = id;
+    if (wasComments && id !== COMMENTS_PANEL) {
       this.activeThreadId = null;
       this.pendingComment = null;
     }
     this.notify();
+  }
+
+  setCommentsOpen(open: boolean): void {
+    this.setOpenPanel(open ? COMMENTS_PANEL : null);
   }
 
   setShowResolved(show: boolean): void {
@@ -256,7 +277,7 @@ export class Editor {
     const hit = hitTest(this.scene, world, 4 / this.camera.zoom);
     this.pendingComment = { shapeId: hit ? hit.id : null, x: world.x, y: world.y };
     this.activeThreadId = null;
-    this.commentsOpen = true;
+    this.openPanel = COMMENTS_PANEL;
     this.tool = 'select';
     this.notify();
   }
@@ -375,6 +396,13 @@ export class Editor {
   refreshTheme(): void {
     this.theme = resolveCanvasTheme(this.canvas);
     this.requestRender();
+  }
+
+  /** Report how much room a piece of floating chrome takes on one side. */
+  setInset(side: 'left' | 'right', px: number): void {
+    if (this.insets[side] === px) return;
+    this.insets = { ...this.insets, [side]: px };
+    this.notify();
   }
 
   setViewport(w: number, h: number): void {
@@ -1539,9 +1567,8 @@ export class Editor {
       this.setGridSnap(!this.gridSnap);
       return true;
     }
-    const toolKeys: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rect', o: 'ellipse', l: 'line', n: 'sticky', t: 'text', p: 'pen', c: 'connector', f: 'frame', m: 'comment' };
-    if (k in toolKeys && !mods.alt) {
-      this.setTool(toolKeys[k]);
+    if (k in TOOL_BY_KEY && !mods.alt) {
+      this.setTool(TOOL_BY_KEY[k]);
       return true;
     }
     return false;
