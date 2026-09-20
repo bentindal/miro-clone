@@ -12,7 +12,7 @@ import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '
 import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
 import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
-import { type FitResult, STICKY_PAD, fitText } from '../model/textFit';
+import { type FitResult, STICKY_PAD, fitText, layoutTextBlock } from '../model/textFit';
 import { type CanvasTheme, LIGHT_CANVAS_THEME } from './theme';
 import { gridLevels } from './grid';
 
@@ -788,7 +788,10 @@ function drawStickyText(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: num
   const width = Math.max(s.w - STICKY_PAD * 2, 1);
   const maxLines = Math.max(1, Math.floor((s.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
   const n = Math.min(fit.lines.length, maxLines);
-  for (let i = 0; i < n; i++) ctx.fillText(fit.lines[i], s.x + STICKY_PAD, s.y + STICKY_PAD + i * fit.lineHeight, width);
+  const block = layoutTextBlock(s, STICKY_PAD, n, fit.lineHeight, s.align, s.valign);
+  ctx.textAlign = block.textAlign;
+  for (let i = 0; i < n; i++) ctx.fillText(fit.lines[i], block.x, block.y + i * fit.lineHeight, width);
+  ctx.textAlign = 'start';
 }
 
 function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {

@@ -5,6 +5,7 @@ import { Dock } from './editor/Dock';
 import { ToolRail } from './editor/ToolRail';
 import { TopBar } from './editor/TopBar';
 import { ZoomCluster } from './editor/ZoomCluster';
+import { Toaster } from './ui';
 import { Home } from './Home';
 import { ApiError, NoSyncServerError, createBoard, getBoard, parseBoardLocation } from './sync/api';
 import { rememberBoard, updateRecentTitle } from './sync/recent';
@@ -120,6 +121,7 @@ export default function App() {
           <Dock editor={editor} />
         </div>
       )}
+      <Toaster />
     </div>
   );
 }

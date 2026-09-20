@@ -44,9 +44,11 @@ test.describe('save and load board JSON', () => {
   test('loading a malformed file reports an error and leaves the board alone', async ({ page }) => {
     const ctx = await openBoard(page);
     await drawRect(ctx, { x: 100, y: 100 }, { x: 200, y: 200 });
-    let message = '';
+    // A native dialog used to block the tab until it was dismissed; the same
+    // message now arrives as a toast that can be read and ignored.
+    let dialogs = 0;
     page.on('dialog', (d) => {
-      message = d.message();
+      dialogs++;
       void d.dismiss();
     });
     await openBoardMenu(page);
@@ -55,7 +57,10 @@ test.describe('save and load board JSON', () => {
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify({ format: 'whiteboard', version: 1, shapes: [{ type: 'rect', id: 'x' }] })),
     });
-    await expect.poll(() => message).toContain('Could not load board');
+    const toast = page.getByTestId('toast');
+    await expect(toast).toContainText('Could not load board');
+    await expect(toast).toHaveAttribute('data-kind', 'error');
     expect(await shapes(page)).toHaveLength(1);
+    expect(dialogs).toBe(0);
   });
 });

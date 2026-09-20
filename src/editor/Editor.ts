@@ -1067,6 +1067,8 @@ export class Editor {
         rotation: 0,
         text: '',
         fill,
+        align: 'center',
+        valign: 'middle',
         votes: [],
       };
       this.scene.add(s);

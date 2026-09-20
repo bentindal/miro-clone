@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { STICKY_MAX_FONT, STICKY_MIN_FONT, fitText, requiredHeight, wrapText } from '../textFit';
+import type { TextAlign, TextVAlign } from '../types';
+import { STICKY_MAX_FONT, STICKY_MIN_FONT, fitText, layoutTextBlock, requiredHeight, wrapText } from '../textFit';
 
 /** Every character is 0.6 em wide, like a typical sans-serif average. */
 const measure = (text: string, font: string) => text.length * 0.6 * parseFloat(font);
@@ -48,5 +49,37 @@ describe('fitText', () => {
     const h = requiredHeight(text, 120, 10, measure);
     expect(h).toBeGreaterThan(120);
     expect(fitText(text, 120, h, 10, measure).overflow).toBe(false);
+  });
+});
+
+describe('layoutTextBlock', () => {
+  const box = { x: 100, y: 200, w: 200, h: 100 };
+  const PAD = 10;
+  // Two 20px lines in an 80px-tall inner box: 40px spare.
+  const two = (align: TextAlign, valign: TextVAlign) => layoutTextBlock(box, PAD, 2, 20, align, valign);
+
+  it('puts the block where the note says, horizontally', () => {
+    expect(two('left', 'top')).toMatchObject({ x: 110, textAlign: 'left' });
+    expect(two('center', 'top')).toMatchObject({ x: 200, textAlign: 'center' });
+    expect(two('right', 'top')).toMatchObject({ x: 290, textAlign: 'right' });
+  });
+
+  it('puts the block where the note says, vertically', () => {
+    expect(two('center', 'top').y).toBe(210);
+    expect(two('center', 'middle').y).toBe(230);
+    expect(two('center', 'bottom').y).toBe(250);
+  });
+
+  it('centres by default, which is where a note with one line reads best', () => {
+    // One 20px line, 60px spare: half above, half below.
+    expect(layoutTextBlock(box, PAD, 1, 20, 'center', 'middle')).toMatchObject({ x: 200, y: 240, textAlign: 'center' });
+  });
+
+  // Otherwise the first line of an overflowing note starts above the note and
+  // the part you can read is the middle of the text rather than its start.
+  it('pins text taller than the note to the top, whatever the alignment', () => {
+    for (const valign of ['top', 'middle', 'bottom'] as const) {
+      expect(layoutTextBlock(box, PAD, 10, 20, 'center', valign).y, valign).toBe(210);
+    }
   });
 });

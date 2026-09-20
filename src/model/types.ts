@@ -15,6 +15,14 @@ export type ArrowHead = 'none' | 'arrow' | 'open' | 'dot' | 'bar';
 
 export const ARROW_HEADS: ArrowHead[] = ['none', 'arrow', 'open', 'dot', 'bar'];
 
+export type TextAlign = 'left' | 'center' | 'right';
+
+export const TEXT_ALIGNS: TextAlign[] = ['left', 'center', 'right'];
+
+export type TextVAlign = 'top' | 'middle' | 'bottom';
+
+export const TEXT_VALIGNS: TextVAlign[] = ['top', 'middle', 'bottom'];
+
 interface ShapeBase {
   id: Id;
   /** Group or frame that contains this shape. */
@@ -65,6 +73,10 @@ export interface StickyShape extends Boxed {
   type: 'sticky';
   text: string;
   fill: string;
+  /** Horizontal placement of the text block within the note. */
+  align: TextAlign;
+  /** Vertical placement of the text block within the note. */
+  valign: TextVAlign;
   /** Names of the people who voted for this note, shown as dots. */
   votes: string[];
 }

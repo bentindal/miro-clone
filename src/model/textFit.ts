@@ -4,6 +4,8 @@
  * into. Measurement is injected: the renderer passes the canvas context's
  * measureText, tests pass a fixed-width stand-in.
  */
+import type { TextAlign, TextVAlign } from './types';
+
 export type Measure = (text: string, font: string) => number;
 
 export const STICKY_MIN_FONT = 10;
@@ -68,4 +70,36 @@ export function requiredHeight(text: string, w: number, pad: number, measure: Me
   const font = fontString(STICKY_MIN_FONT);
   const lines = wrapText(text, Math.max(w - pad * 2, 1), font, measure);
   return Math.ceil(lines.length * STICKY_MIN_FONT * STICKY_LINE_HEIGHT + pad * 2);
+}
+
+export interface TextBlockLayout {
+  /** What to set `ctx.textAlign` to, and the CSS `text-align` to match. */
+  textAlign: TextAlign;
+  /** x to draw every line at, given that `textAlign`. */
+  x: number;
+  /** y of the top of the first line. */
+  y: number;
+}
+
+/**
+ * Where a block of `lines` sits inside a box. Horizontal alignment is the
+ * canvas's own; vertical has no canvas equivalent, so it is an offset the
+ * caller applies to the first line.
+ *
+ * Text taller than the box is pinned to the top rather than allowed to start
+ * above it, so the first line is always the one you can read.
+ */
+export function layoutTextBlock(
+  box: { x: number; y: number; w: number; h: number },
+  pad: number,
+  lines: number,
+  lineHeight: number,
+  align: TextAlign,
+  valign: TextVAlign,
+): TextBlockLayout {
+  const x = align === 'left' ? box.x + pad : align === 'right' ? box.x + box.w - pad : box.x + box.w / 2;
+  const blockHeight = lines * lineHeight;
+  const free = box.h - pad * 2 - blockHeight;
+  const offset = valign === 'top' ? 0 : valign === 'bottom' ? free : free / 2;
+  return { textAlign: align, x, y: box.y + pad + Math.max(0, offset) };
 }

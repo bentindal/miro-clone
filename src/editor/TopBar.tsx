@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Icon, IconButton, Panel } from '../ui';
+import { Button, Icon, IconButton, Panel, toast } from '../ui';
 import { type SyncSession, saveUser } from '../sync/session';
 import { downloadBlob } from './download';
 import type { Editor } from './Editor';
@@ -63,7 +63,12 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
   const exportPNG = () => {
     const canvas = editor.exportPNGCanvas(2);
     canvas.toBlob((blob) => {
-      if (blob) downloadBlob(blob, 'board.png');
+      if (blob) {
+        downloadBlob(blob, 'board.png');
+        toast('Exported board.png', 'success');
+      } else {
+        toast('Could not export this board as a PNG', 'error');
+      }
     }, 'image/png');
     setOpen(null);
   };
@@ -71,6 +76,7 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
   const saveJSON = () => {
     const json = JSON.stringify(editor.toBoardFile(), null, 2);
     downloadBlob(new Blob([json], { type: 'application/json' }), 'board.json');
+    toast('Saved board.json', 'success');
     setOpen(null);
   };
 
@@ -81,8 +87,11 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
       try {
         editor.loadBoardFile(JSON.parse(text));
         editor.zoomToFit();
+        toast('Board loaded', 'success');
       } catch (err) {
-        window.alert(`Could not load board: ${err instanceof Error ? err.message : String(err)}`);
+        // A native alert blocked the tab until it was dismissed, and there was
+        // nowhere to put the successful cases beside it.
+        toast(`Could not load board: ${err instanceof Error ? err.message : String(err)}`, 'error');
       }
     });
   };
