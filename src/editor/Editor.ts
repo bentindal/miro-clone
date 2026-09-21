@@ -141,6 +141,9 @@ export class Editor {
 
   /** The command palette lives here rather than in a component, so a command can open it. */
   paletteOpen = false;
+
+  /** Whether the minimap is showing. Here for the same reason the palette is. */
+  minimapOpen = true;
   showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
@@ -262,6 +265,12 @@ export class Editor {
   setPaletteOpen(open: boolean): void {
     if (this.paletteOpen === open) return;
     this.paletteOpen = open;
+    this.notify();
+  }
+
+  setMinimapOpen(open: boolean): void {
+    if (this.minimapOpen === open) return;
+    this.minimapOpen = open;
     this.notify();
   }
 
@@ -567,6 +576,21 @@ export class Editor {
   zoomToFit(): void {
     if (this.scene.size === 0) return this.resetCamera();
     this.setCamera(fitCamera(boardBounds(this.scene), this.viewport.w, this.viewport.h));
+  }
+
+  /** Fill the viewport with the selection, which is `zoomToFit` over fewer shapes. */
+  zoomToSelection(): void {
+    if (this.selection.length === 0) return;
+    this.setCamera(fitCamera(this.scene.boundsOfMany(this.selection), this.viewport.w, this.viewport.h));
+  }
+
+  /** Put a world point in the middle of the viewport, keeping the zoom. */
+  centerOn(world: Vec): void {
+    this.setCamera({
+      zoom: this.camera.zoom,
+      tx: this.viewport.w / 2 - world.x * this.camera.zoom,
+      ty: this.viewport.h / 2 - world.y * this.camera.zoom,
+    });
   }
 
   /** Wheel input: plain scroll pans, ctrl (trackpad pinch) zooms around the cursor. */

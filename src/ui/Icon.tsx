@@ -215,6 +215,12 @@ const GLYPHS = {
       <path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 13.5h.01M8 15h8" />
     </>
   ),
+  minimap: (
+    <>
+      <rect x="3" y="4.5" width="18" height="15" rx="2" />
+      <rect x="6" y="7.5" width="8" height="6" rx="1" />
+    </>
+  ),
   reset: (
     <>
       <path d="M4 5.5v5h5" />

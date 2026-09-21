@@ -82,6 +82,19 @@
   bottom: var(--space-6);
 }
 
+.minimap {
+  position: absolute;
+  bottom: var(--space-6);
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  touch-action: none;
+  z-index: 3;
+}
+
 .zoom {
   min-width: 46px;
   text-align: center;

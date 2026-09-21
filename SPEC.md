@@ -259,7 +259,20 @@ needs a passing end-to-end test.
       `tags survive a round trip through the board file, and older notes open with none`,
       `a tag added by one person appears for the other`.
 - [ ] Rich text: bold, lists, links.
-- [ ] Minimap and zoom to selection.
+- [x] Minimap and zoom to selection. A minimap bottom right shows the whole
+      board with the viewport drawn on it; clicking or dragging moves the
+      camera and never the shapes. It covers the content *and* whatever the
+      viewport can see, so the viewport rectangle cannot wander off it when
+      someone pans past the last shape, and it keeps clear of the dock. Zoom
+      to selection is a command like any other, on Shift+2.
+      Proof: [`e2e/minimap.spec.ts`](e2e/minimap.spec.ts) › `the minimap` ›
+      `shows by default, hides from the zoom cluster, and comes back`,
+      `clicking it moves the camera to that part of the board`,
+      `never changes the board`,
+      `keeps clear of the dock when a panel is open`;
+      › `zoom to selection` ›
+      `fills the viewport with the selection and nothing else`,
+      `is offered in the palette, and greyed with nothing selected`.
 - [ ] Image upload and paste from the clipboard.
 
 ## Unit coverage
@@ -273,6 +286,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Serialisation round trip: `src/model/__tests__/serialize.test.ts`
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
+- Minimap projection, both ways: `src/render/__tests__/minimap.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
 - Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`
