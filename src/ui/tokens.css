@@ -31,6 +31,9 @@
   /* Text on an accent fill or a person's colour. White in either theme. */
   --text-inverse: #ffffff;
 
+  /* Behind a modal surface: the command palette dims the board. */
+  --scrim: rgba(17, 20, 24, 0.32);
+
   /* Tooltip bubble, which is its own surface in both themes. */
   --tooltip-bg: #222222;
   --tooltip-text: #ffffff;
@@ -126,6 +129,9 @@
   /* Text on an accent fill or a person's colour. White in either theme. */
   --text-inverse: #ffffff;
 
+  /* Behind a modal surface: the command palette dims the board. */
+  --scrim: rgba(0, 0, 0, 0.5);
+
   /* Tooltip bubble, which is its own surface in both themes. */
   --tooltip-bg: #3a404a;
   --tooltip-text: #f2f4f6;
@@ -182,6 +188,9 @@
     --text-muted: #a0a6ae;
     /* Text on an accent fill or a person's colour. White in either theme. */
     --text-inverse: #ffffff;
+
+    /* Behind a modal surface: the command palette dims the board. */
+    --scrim: rgba(0, 0, 0, 0.5);
 
     /* Tooltip bubble, which is its own surface in both themes. */
     --tooltip-bg: #3a404a;

@@ -1,6 +1,7 @@
 import { COMMENTS_PANEL } from './Editor';
 import { CommentsBody, ShowResolvedToggle } from './CommentsPanel';
 import { registerPanel } from './panels';
+import { ShortcutsBody } from './ShortcutsPanel';
 
 /**
  * The panels the editor ships with. Comments is the first; anything else
@@ -14,4 +15,12 @@ registerPanel({
   badge: (editor) => editor.comments.openCount,
   headerExtra: (editor) => <ShowResolvedToggle editor={editor} />,
   render: (editor) => <CommentsBody editor={editor} />,
+});
+
+registerPanel({
+  id: 'shortcuts',
+  slot: 'right',
+  icon: 'keyboard',
+  title: 'Shortcuts',
+  render: (editor) => <ShortcutsBody editor={editor} />,
 });

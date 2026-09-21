@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './editor/Board';
+import { CommandPalette } from './editor/CommandPalette';
 import { Editor } from './editor/Editor';
 import { Dock } from './editor/Dock';
 import { ToolRail } from './editor/ToolRail';
@@ -134,6 +135,7 @@ export default function App() {
           <Dock editor={editor} />
         </div>
       )}
+      <CommandPalette editor={editor} />
       <Toaster />
     </div>
   );

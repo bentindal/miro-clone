@@ -52,7 +52,8 @@ import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
-import { type Tool, TOOL_BY_KEY } from './tools';
+import type { Tool } from './tools';
+import { runShortcut } from './shortcuts';
 import { toolCursor } from './cursors';
 import { type StylePatch, patchFor } from './fields';
 
@@ -137,6 +138,9 @@ export class Editor {
   pendingComment: { shapeId: Id | null; x: number; y: number } | null = null;
   /** Panel open in the dock, by its registered id, or null for none. */
   openPanel: string | null = null;
+
+  /** The command palette lives here rather than in a component, so a command can open it. */
+  paletteOpen = false;
   showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
@@ -255,6 +259,12 @@ export class Editor {
   }
 
   /** Show a registered panel in the dock, or close the dock with null. */
+  setPaletteOpen(open: boolean): void {
+    if (this.paletteOpen === open) return;
+    this.paletteOpen = open;
+    this.notify();
+  }
+
   setOpenPanel(id: string | null): void {
     const wasComments = this.commentsOpen;
     this.openPanel = id;
@@ -613,6 +623,20 @@ export class Editor {
     this.tool = tool;
     this.drag = null;
     this.notify();
+  }
+
+  /**
+   * What a right-click should act on: whatever is under the pointer, unless
+   * it is already part of the selection. Clicking away clears, so the menu
+   * cannot offer to delete something the person is not looking at.
+   */
+  selectForContext(screen: Vec): void {
+    const target = selectableAt(this.scene, this.toWorld(screen), 4 / this.camera.zoom);
+    if (!target) {
+      if (this.selection.length) this.clearSelection();
+      return;
+    }
+    if (!this.selection.includes(target)) this.select([target]);
   }
 
   select(ids: Id[]): void {
@@ -1445,117 +1469,34 @@ export class Editor {
 
   // ---- keyboard ----------------------------------------------------------
 
-  /** Returns true when the key was consumed. */
+  /**
+   * Returns true when the key was consumed. The editor no longer knows which
+   * key does what: `commands.ts` declares the actions and `shortcuts.ts` maps
+   * chords to them, so a remapped key and a tooltip cannot disagree.
+   */
   onKeyDown(key: string, mods: Modifiers): boolean {
-    const k = key.length === 1 ? key.toLowerCase() : key;
-    if (mods.ctrl) {
-      switch (k) {
-        case 'z':
-          if (mods.shift) this.redo();
-          else this.undo();
-          return true;
-        case 'y':
-          this.redo();
-          return true;
-        case 'c':
-          this.copy();
-          return true;
-        case 'x':
-          this.cut();
-          return true;
-        case 'v':
-          this.paste();
-          return true;
-        case 'd':
-          this.duplicate();
-          return true;
-        case 'a':
-          this.selectAll();
-          return true;
-        case 'g':
-          if (mods.shift) this.ungroupSelection();
-          else this.groupSelection();
-          return true;
-        case ']':
-          this.bringToFront();
-          return true;
-        case '[':
-          this.sendToBack();
-          return true;
-        case '0':
-          this.resetCamera();
-          return true;
-        case '=':
-        case '+':
-          this.zoomBy(1.25);
-          return true;
-        case '-':
-          this.zoomBy(0.8);
-          return true;
-        case '1':
-          this.zoomToFit();
-          return true;
-      }
-      return false;
-    }
-    switch (key) {
-      case 'Delete':
-      case 'Backspace':
-        this.deleteSelection();
-        return true;
-      case 'Escape':
-        if (this.drag) this.cancelDrag();
-        else if (this.pendingComment) this.cancelComment();
-        else if (this.selection.length) this.clearSelection();
-        else this.setTool('select');
-        return true;
-      case ']':
-        this.bringForward();
-        return true;
-      case '[':
-        this.sendBackward();
-        return true;
-      case '}':
-        this.bringToFront();
-        return true;
-      case '{':
-        this.sendToBack();
-        return true;
-      case '=':
-      case '+':
-        this.zoomBy(1.25);
-        return true;
-      case '-':
-        this.zoomBy(0.8);
-        return true;
-      case 'ArrowLeft':
-      case 'ArrowRight':
-      case 'ArrowUp':
-      case 'ArrowDown': {
-        if (this.selection.length === 0) return false;
-        const step = mods.shift ? 10 : 1;
-        const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0;
-        const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0;
-        this.transact(() => {
-          this.scene.translate(this.selection, dx, dy);
-          this.assignFrames(this.selection);
-        });
-        return true;
-      }
-    }
-    if (mods.shift && key === '!') {
-      this.zoomToFit();
-      return true;
-    }
-    if (k === 'g' && !mods.alt) {
-      this.setGridSnap(!this.gridSnap);
-      return true;
-    }
-    if (k in TOOL_BY_KEY && !mods.alt) {
-      this.setTool(TOOL_BY_KEY[k]);
-      return true;
-    }
-    return false;
+    return runShortcut(this, key, mods);
+  }
+
+  /** Move the selection by whole board units, as the arrow keys do. */
+  nudge(dx: number, dy: number): void {
+    if (this.selection.length === 0 || this.readOnly) return;
+    this.transact(() => {
+      this.scene.translate(this.selection, dx, dy);
+      this.assignFrames(this.selection);
+    });
+  }
+
+  /**
+   * Back out of whatever is in progress, innermost first. Escape means "not
+   * this" rather than any one action, so it unwinds one layer per press.
+   */
+  cancel(): void {
+    if (this.drag) this.cancelDrag();
+    else if (this.pendingComment) this.cancelComment();
+    else if (this.paletteOpen) this.setPaletteOpen(false);
+    else if (this.selection.length) this.clearSelection();
+    else this.setTool('select');
   }
 
   setSpaceHeld(held: boolean): void {

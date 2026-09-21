@@ -42,10 +42,14 @@ test.describe('shell', () => {
   test('the dock is built from the panel registry', async ({ page }) => {
     await openBoard(page);
     const tabs = page.locator('.dock-tabs [data-action^="toggle-"]');
-    // One tab per registered panel, named from its definition.
-    await expect(tabs).toHaveCount(1);
-    await expect(tabs.first()).toHaveAttribute('data-action', 'toggle-comments');
-    await expect(tabs.first()).toHaveAttribute('aria-label', 'Comments');
+    // One tab per registered panel, named from its definition. Shortcuts
+    // registered itself in UI-6 without the dock being told about it, which is
+    // the point of the registry, so the count follows the registrations.
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(0)).toHaveAttribute('data-action', 'toggle-comments');
+    await expect(tabs.nth(0)).toHaveAttribute('aria-label', 'Comments');
+    await expect(tabs.nth(1)).toHaveAttribute('data-action', 'toggle-shortcuts');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-label', 'Shortcuts');
     await expect(page.getByTestId('panel-comments')).toHaveCount(0);
 
     await tabs.first().click();
