@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { worldToScreen } from '../model/geometry';
 import { FRAME_TITLE_HEIGHT } from '../model/scene';
 import { fontFor } from '../render/renderer';
 import { STICKY_PAD, fitText, layoutTextBlock, stickyTextBox, tagInset } from '../model/textFit';
 import { hasText } from '../model/types';
+import { FormatBar } from './FormatBar';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
 
@@ -21,8 +22,23 @@ function measureText(text: string, font: string): number {
 export function TextEditorOverlay({ editor }: { editor: Editor }) {
   useEditorVersion(editor);
   const ref = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  /** What is highlighted in the textarea, which is what formatting applies to. */
+  const [range, setRange] = useState({ from: 0, to: 0 });
   const editing = editor.editing;
   const shape = editing ? editor.scene.get(editing.id) : undefined;
+
+  // `selectionchange` on the document is the event that actually fires for
+  // every way a caret moves — typing, dragging, keyboard, the browser's own
+  // menus. React's `onSelect` is a partial emulation of it and misses some.
+  useEffect(() => {
+    const read = () => {
+      const el = ref.current;
+      if (el && document.activeElement === el) setRange({ from: el.selectionStart ?? 0, to: el.selectionEnd ?? 0 });
+    };
+    document.addEventListener('selectionchange', read);
+    return () => document.removeEventListener('selectionchange', read);
+  }, []);
 
   useEffect(() => {
     if (shape && ref.current) {
@@ -79,14 +95,28 @@ export function TextEditorOverlay({ editor }: { editor: Editor }) {
     fit && note && textBox
       ? layoutTextBlock({ x: 0, y: 0, w: textBox.w, h: textBox.h }, STICKY_PAD, fit.lines.length, fit.lineHeight, note.align, note.valign)
       : null;
-  return (
+  const formattable = hasText(shape);
+  /** Put the caret back after a button in the format bar took focus. */
+  const restore = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(range.from, range.to);
+  };
+
+  const area = (
     <textarea
       ref={ref as React.RefObject<HTMLTextAreaElement>}
       data-testid="text-editor"
       className="text-editor"
       value={editor.editingText()}
       onChange={(e) => editor.setEditingText(e.target.value)}
-      onBlur={() => editor.finishEditing()}
+      onBlur={(e) => {
+        // Reaching for the format bar is not leaving the text, so focus
+        // landing inside it must not end the edit.
+        if (barRef.current?.contains(e.relatedTarget as Node | null)) return;
+        editor.finishEditing();
+      }}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === 'Escape' || (e.key === 'Enter' && (isFrame || e.ctrlKey || e.metaKey))) {
@@ -114,5 +144,13 @@ export function TextEditorOverlay({ editor }: { editor: Editor }) {
         color: shape.type === 'text' ? shape.color : '#222',
       }}
     />
+  );
+
+  if (!formattable || editor.readOnly) return area;
+  return (
+    <>
+      {area}
+      <FormatBar editor={editor} barRef={barRef} at={{ x: tl.x, y: Math.max(4, tl.y - 44) }} range={range} restore={restore} />
+    </>
   );
 }

@@ -2,6 +2,7 @@ import {
   ANCHORS,
   ARROW_HEADS,
   CONNECTOR_STYLES,
+  LIST_STYLES,
   TEXT_ALIGNS,
   TEXT_VALIGNS,
   type Anchor,
@@ -9,10 +10,12 @@ import {
   type ConnectorStyle,
   type ConnectorShape,
   type ImageShape,
+  type ListStyle,
   type Shape,
   type ShapeType,
   type StickyShape,
   type TextAlign,
+  type TextShape,
   type TextVAlign,
 } from '../model/types';
 import type { IconName } from '../ui';
@@ -230,6 +233,20 @@ export const FIELDS = {
     read: (s) => (s as StickyShape).valign,
     write: (v) => ({ valign: v }) as Partial<Shape>,
   } satisfies EnumField<TextVAlign>,
+
+  list: {
+    kind: 'enum',
+    id: 'list',
+    group: 'Text',
+    label: 'List',
+    types: ['sticky', 'text'],
+    options: LIST_STYLES,
+    as: 'buttons',
+    optionLabel: (l: ListStyle) => (l === 'none' ? 'No list' : l === 'bullet' ? 'Bulleted list' : 'Numbered list'),
+    optionIcon: (l: ListStyle) => (l === 'none' ? 'text' : l === 'bullet' ? 'listBullet' : 'listNumber'),
+    read: (s) => (s as StickyShape | TextShape).list,
+    write: (v) => ({ list: v }) as Partial<Shape>,
+  } satisfies EnumField<ListStyle>,
 
   tags: {
     kind: 'tags',

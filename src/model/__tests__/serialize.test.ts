@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Scene } from '../scene';
 import { deserializeScene, sceneFromJSON, sceneToJSON, serializeScene } from '../serialize';
-import { connector, ellipse, frame, group, line, pen, rect, sticky } from './fixtures';
+import { connector, ellipse, frame, group, line, pen, rect, sticky, text } from './fixtures';
 import type { TextShape } from '../types';
 
 function fullScene(): Scene {
@@ -12,7 +12,7 @@ function fullScene(): Scene {
   s.add(line('l', 0, 200, 100, 250));
   s.add(pen('p', 300, 300, [{ x: 0, y: 0 }, { x: 5, y: 7 }, { x: 10, y: 3 }]));
   s.add(sticky('n', 400, 400, 'hello\nworld'));
-  const t: TextShape = { type: 'text', id: 't', parentId: null, x: 1, y: 2, w: 3, h: 4, rotation: 0, text: 'txt', fontSize: 20, color: '#123' };
+  const t: TextShape = text('t', 1, 2, { w: 3, h: 4, text: 'txt', fontSize: 20, color: '#123' });
   s.add(t);
   s.add(group('g'));
   s.setParent('e', 'g');

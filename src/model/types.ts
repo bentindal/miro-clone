@@ -1,3 +1,4 @@
+import type { Mark } from './marks';
 import type { Vec } from './geometry';
 
 export type Id = string;
@@ -69,9 +70,16 @@ export interface PenShape extends Boxed {
   points: Vec[];
 }
 
+export const LIST_STYLES = ['none', 'bullet', 'number'] as const;
+export type ListStyle = (typeof LIST_STYLES)[number];
+
 export interface StickyShape extends Boxed {
   type: 'sticky';
   text: string;
+  /** Inline formatting over `text`. See `src/model/marks.ts`. */
+  marks: Mark[];
+  /** Whether the lines are drawn as a list, and of which kind. */
+  list: ListStyle;
   fill: string;
   /** Horizontal placement of the text block within the note. */
   align: TextAlign;
@@ -100,6 +108,10 @@ export interface ImageShape extends Boxed {
 export interface TextShape extends Boxed {
   type: 'text';
   text: string;
+  /** Inline formatting over `text`. See `src/model/marks.ts`. */
+  marks: Mark[];
+  /** Whether the lines are drawn as a list, and of which kind. */
+  list: ListStyle;
   fontSize: number;
   color: string;
 }

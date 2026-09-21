@@ -1,23 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Shape, ShapeType } from '../../model/types';
-import { connector, ellipse, frame, group, image, line, pen, rect, sticky } from '../../model/__tests__/fixtures';
+import { connector, ellipse, frame, group, image, line, pen, rect, sticky, text as textShape } from '../../model/__tests__/fixtures';
 import { FIELDS, FIELD_LIST, fieldsFor, patchFor, shapesFor, valueOf } from '../fields';
 
 const SHAPE_TYPES: ShapeType[] = ['rect', 'ellipse', 'line', 'pen', 'sticky', 'text', 'image', 'frame', 'group', 'connector'];
 
-const text = (id: string, fontSize = 14, color = '#222222'): Shape => ({
-  type: 'text',
-  id,
-  parentId: null,
-  x: 0,
-  y: 0,
-  w: 100,
-  h: 20,
-  rotation: 0,
-  text: 'hi',
-  fontSize,
-  color,
-});
+const text = (id: string, fontSize = 14, color = '#222222'): Shape => textShape(id, 0, 0, { fontSize, color, w: 100, h: 20 });
 
 const SAMPLES: Partial<Record<ShapeType, Shape>> = {
   rect: rect('r', 0, 0, 10, 10),

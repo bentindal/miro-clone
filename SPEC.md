@@ -258,7 +258,23 @@ needs a passing end-to-end test.
       `the tag row takes its space off the text rather than overlapping it`,
       `tags survive a round trip through the board file, and older notes open with none`,
       `a tag added by one person appears for the other`.
-- [ ] Rich text: bold, lists, links.
+- [x] Rich text: bold, lists, links. Highlight text while editing a note or a
+      text box and a format bar offers bold, italic and a link; the property
+      bar sets the whole block as a bulleted or numbered list. Formatting is
+      ranges over the plain string rather than a document tree, so `text` stays
+      a string and wrapping, fitting, hit testing, search, the accessible
+      description and the board file all keep working — and the ranges follow
+      the words as the text around them is edited. Bold is measured when
+      wrapping, because it is wider. A link opens in a new tab on a second
+      click, and only `http`, `https` and `mailto` survive a board file.
+      Proof: [`e2e/rich-text.spec.ts`](e2e/rich-text.spec.ts) › `rich text` ›
+      `the format bar bolds what is highlighted, and un-bolds it again`,
+      `bold is drawn, not just recorded`,
+      `formatting follows the words when the text around it changes`,
+      `a link is added from the bar, opens in a new tab, and can be taken off`,
+      `a list is set from the property bar and changes how the note is drawn`,
+      `formatting survives a round trip, and a board file cannot smuggle in a script link`,
+      `older notes and text open unformatted rather than failing to open`.
 - [x] Minimap and zoom to selection. A minimap bottom right shows the whole
       board with the viewport drawn on it; clicking or dragging moves the
       camera and never the shapes. It covers the content *and* whatever the
@@ -304,6 +320,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
 - Minimap projection, both ways: `src/render/__tests__/minimap.test.ts`
 - What counts as a picture, and how big it arrives: `src/model/__tests__/images.test.ts`
+- Inline formatting ranges, and keeping them on the right characters: `src/model/__tests__/marks.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
 - Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`

@@ -1,8 +1,10 @@
 import { Scene } from './scene';
+import { MARK_KINDS, type Mark, normalizeMarks } from './marks';
 import {
   ANCHORS,
   ARROW_HEADS,
   CONNECTOR_STYLES,
+  LIST_STYLES,
   TEXT_ALIGNS,
   TEXT_VALIGNS,
   type Anchor,
@@ -129,6 +131,31 @@ function connectorEnd(v: unknown, name: string) {
   };
 }
 
+/**
+ * Where a link may point. A board file is something people send each other,
+ * so a link in one is a link the reader is invited to click: `javascript:`,
+ * `data:` and anything else that is not a page are dropped rather than
+ * carried. The text keeps its formatting; only the target goes.
+ */
+const SAFE_LINK = /^(https?:|mailto:)/i;
+
+function marks(raw: unknown, length: number): Mark[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Mark[] = [];
+  for (const m of raw) {
+    if (!isRecord(m)) continue;
+    const kind = MARK_KINDS.find((k) => k === m.kind);
+    if (!kind) continue;
+    const from = typeof m.from === 'number' && Number.isFinite(m.from) ? m.from : null;
+    const to = typeof m.to === 'number' && Number.isFinite(m.to) ? m.to : null;
+    if (from === null || to === null) continue;
+    const href = typeof m.href === 'string' && SAFE_LINK.test(m.href) ? m.href : '';
+    if (kind === 'link' && !href) continue;
+    out.push({ kind, from: Math.floor(from), to: Math.floor(to), href });
+  }
+  return normalizeMarks(out, length);
+}
+
 /** `data:image/png;base64,…` and friends, and nothing else. */
 const IMAGE_DATA_URL = /^data:image\/(png|jpeg|gif|webp|avif|bmp|svg\+xml);/i;
 
@@ -176,6 +203,9 @@ export function validateShape(raw: unknown): Shape {
         // Notes saved before notes had an alignment take the default.
         align: oneOf(raw.align, TEXT_ALIGNS, 'center'),
         valign: oneOf(raw.valign, TEXT_VALIGNS, 'middle'),
+        // Notes saved before notes could be formatted open unformatted.
+        marks: marks(raw.marks, optStr(raw.text, '').length),
+        list: oneOf(raw.list, LIST_STYLES, 'none'),
         votes: Array.isArray(raw.votes) ? raw.votes.filter((v): v is string => typeof v === 'string') : [],
         // Notes saved before notes had tags open with none.
         tags: Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : [],
@@ -185,6 +215,8 @@ export function validateShape(raw: unknown): Shape {
         type,
         ...boxed(raw),
         text: optStr(raw.text, ''),
+        marks: marks(raw.marks, optStr(raw.text, '').length),
+        list: oneOf(raw.list, LIST_STYLES, 'none'),
         fontSize: optNum(raw.fontSize, 18),
         color: optStr(raw.color, '#222222'),
       };
