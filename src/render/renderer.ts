@@ -11,7 +11,8 @@ import {
 import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '../model/scene';
 import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
-import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
+import type { ArrowHead, Id, ImageShape, Shape, StickyShape, TextShape } from '../model/types';
+import { imageFailed, imageFor } from './images';
 import { type FitResult, STICKY_PAD, TAG_FONT, TAG_GAP, TAG_HEIGHT, TAG_PAD, fitText, fontString, layoutTags, layoutTextBlock, stickyTextBox } from '../model/textFit';
 import { type CanvasTheme, LIGHT_CANVAS_THEME } from './theme';
 import { gridLevels } from './grid';
@@ -737,6 +738,9 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
     case 'text':
       drawText(ctx, s, zoom);
       break;
+    case 'image':
+      drawImage(ctx, s, theme);
+      break;
     case 'frame': {
       ctx.fillStyle = theme.frameFill;
       ctx.strokeStyle = theme.frameBorder;
@@ -761,6 +765,31 @@ export type Matrix = [number, number, number, number, number, number];
 function matrixOf(ctx: CanvasRenderingContext2D): Matrix {
   const m = ctx.getTransform();
   return [m.a, m.b, m.c, m.d, m.e, m.f];
+}
+
+/**
+ * A picture, or a placeholder while it decodes. The placeholder is drawn
+ * rather than nothing so an image that is slow, or one whose data will not
+ * decode, is still visibly a shape you can select, move and delete.
+ */
+function drawImage(ctx: CanvasRenderingContext2D, s: ImageShape, theme: CanvasTheme): void {
+  const img = imageFor(s.src);
+  if (img) {
+    ctx.drawImage(img, s.x, s.y, s.w, s.h);
+    return;
+  }
+  ctx.fillStyle = theme.frameFill;
+  ctx.fillRect(s.x, s.y, s.w, s.h);
+  ctx.strokeStyle = theme.frameBorder;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(s.x + 0.5, s.y + 0.5, Math.max(s.w - 1, 0), Math.max(s.h - 1, 0));
+  ctx.fillStyle = theme.textMuted;
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(imageFailed(s.src) ? 'Image could not be shown' : (s.alt || 'Loading image…'), s.x + s.w / 2, s.y + s.h / 2, Math.max(s.w - 8, 1));
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawText(ctx: CanvasRenderingContext2D, s: TextShape, zoom: number): void {

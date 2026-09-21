@@ -8,6 +8,7 @@ import {
   type ArrowHead,
   type ConnectorStyle,
   type ConnectorShape,
+  type ImageShape,
   type Shape,
   type ShapeType,
   type StickyShape,
@@ -242,6 +243,19 @@ export const FIELDS = {
     read: (s) => (s as StickyShape).tags,
     write: (v) => ({ tags: [...v] }) as Partial<Shape>,
   } satisfies TagsField,
+
+  alt: {
+    kind: 'text',
+    id: 'alt',
+    group: 'Image',
+    label: 'Alt',
+    types: ['image'],
+    placeholder: 'What it shows',
+    a11y: 'Image description',
+    singleOnly: true,
+    read: (s) => (s as ImageShape).alt,
+    write: (v) => ({ alt: v }) as Partial<Shape>,
+  } satisfies TextField,
 
   connectorStyle: {
     kind: 'enum',

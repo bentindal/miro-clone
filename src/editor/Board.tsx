@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from '../ui';
+import { onImageLoad } from '../render/images';
+import { command, isEnabled } from './commands';
+import { chordFor, shortcuts } from './shortcuts';
 import type { Editor, Modifiers } from './Editor';
 import { ContextMenu } from './ContextMenu';
 import { EmptyBoard } from './EmptyBoard';
@@ -71,14 +75,75 @@ export function Board({ editor }: { editor: Editor }) {
         e.preventDefault();
         return;
       }
+      // Paste is the one chord the editor does not consume. The clipboard's
+      // contents only reach the page through the browser's own `paste` event,
+      // and preventing the key's default would stop that event ever firing,
+      // so the handler below decides between a picture and the editor's own
+      // clipboard once it can see what was actually pasted.
+      if (shortcuts.commandFor(chordFor(e.key, mods(e)))?.id === 'paste') return;
       if (editor.onKeyDown(e.key, mods(e))) e.preventDefault();
+    };
+
+    const firstFile = (data: DataTransfer | null): File | null => data?.files?.[0] ?? null;
+
+    /** The first image on a clipboard, if there is one. */
+    const imageIn = (data: DataTransfer | null): File | null => {
+      for (const item of data?.files ?? []) if (item.type.startsWith('image/')) return item;
+      return null;
+    };
+
+    const place = (file: File, at: { x: number; y: number }) => {
+      void editor.insertImage(file, editor.toWorld(at)).then((refused) => {
+        if (refused) toast(refused, 'error');
+      });
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) return;
+      const file = imageIn(e.clipboardData);
+      if (file) {
+        e.preventDefault();
+        // Pasted pictures land in the middle of what is on screen, because a
+        // paste has no position of its own.
+        place(file, { x: editor.viewport.w / 2, y: editor.viewport.h / 2 });
+        return;
+      }
+      if (editor.readOnly || !isEnabled(command('paste'), editor)) return;
+      e.preventDefault();
+      editor.paste();
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+
+    const onDrop = (e: DragEvent) => {
+      // Any dropped file is taken, not only an image one: somebody who drags a
+      // PDF onto a board has asked a question, and `insertImage` answers it by
+      // name. Silently doing nothing would read as the board being broken.
+      const file = firstFile(e.dataTransfer);
+      if (!file) return;
+      e.preventDefault();
+      if (editor.readOnly) return;
+      const r = canvas.getBoundingClientRect();
+      place(file, { x: e.clientX - r.left, y: e.clientY - r.top });
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ') editor.setSpaceHeld(false);
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('paste', onPaste);
+    host.addEventListener('dragover', onDragOver);
+    host.addEventListener('drop', onDrop);
+    // A decoded picture has to reach the canvas, which cannot wait for it.
+    const stopWatchingImages = onImageLoad(() => editor.requestRender());
     return () => {
+      stopWatchingImages();
+      window.removeEventListener('paste', onPaste);
+      host.removeEventListener('dragover', onDragOver);
+      host.removeEventListener('drop', onDrop);
       ro.disconnect();
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyDown);

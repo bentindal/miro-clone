@@ -129,6 +129,9 @@ function connectorEnd(v: unknown, name: string) {
   };
 }
 
+/** `data:image/png;base64,…` and friends, and nothing else. */
+const IMAGE_DATA_URL = /^data:image\/(png|jpeg|gif|webp|avif|bmp|svg\+xml);/i;
+
 export function validateShape(raw: unknown): Shape {
   if (!isRecord(raw)) throw new Error('Shape must be an object');
   const type = raw.type;
@@ -185,6 +188,15 @@ export function validateShape(raw: unknown): Shape {
         fontSize: optNum(raw.fontSize, 18),
         color: optStr(raw.color, '#222222'),
       };
+    case 'image': {
+      const src = str(raw.src, 'src');
+      // A board file is something people send each other. An image that is a
+      // remote URL would make opening one fetch whatever the sender chose,
+      // from wherever they chose; a `javascript:` one would be worse. The
+      // picture has to be in the file or it is not a picture.
+      if (!IMAGE_DATA_URL.test(src)) throw new Error('Image src must be a data: URL for an image');
+      return { type, ...boxed(raw), src, alt: optStr(raw.alt, '') };
+    }
     case 'frame':
       return { type, ...boxed(raw), title: optStr(raw.title, 'Frame') };
     case 'group':

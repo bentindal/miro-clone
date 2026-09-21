@@ -28,6 +28,7 @@ import {
   type ConnectorShape,
   type ConnectorStyle,
   type FrameShape,
+  type ImageShape,
   type Id,
   type Shape,
   type StickyShape,
@@ -51,6 +52,7 @@ import { type AlignKind, type Guide, type SpacingGuide, alignDeltas, computeSnap
 import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
 import { STICKY_PAD, fitText, requiredHeight, stickyTextBox, tagInset } from '../model/textFit';
+import { fitWithin, isImageDataUrl, rejectImage } from '../model/images';
 import { CommentStore } from '../sync/comments';
 import type { Tool } from './tools';
 import { runShortcut } from './shortcuts';
@@ -1127,6 +1129,46 @@ export class Editor {
     this.tool = 'select';
   }
 
+  /**
+   * Put a picture on the board, centred on `world`. Returns the reason it
+   * could not be, so the caller can say so where the person is looking; the
+   * editor has no opinion about how a failure is shown.
+   */
+  async insertImage(file: File, world: Vec): Promise<string | null> {
+    const refused = rejectImage(file);
+    if (refused) return refused;
+    let src: string;
+    try {
+      src = await readAsDataURL(file);
+    } catch {
+      return `${file.name || 'That file'} could not be read`;
+    }
+    if (!isImageDataUrl(src)) return `${file.name || 'That file'} is not an image this board can show`;
+    const natural = await measureImage(src);
+    if (!natural) return `${file.name || 'That file'} could not be decoded`;
+    const size = fitWithin(natural.w, natural.h);
+    const shape: ImageShape = {
+      type: 'image',
+      id: newId('img'),
+      parentId: null,
+      x: world.x - size.w / 2,
+      y: world.y - size.h / 2,
+      w: size.w,
+      h: size.h,
+      rotation: 0,
+      src,
+      // The file name is a poor description, but it is the only one anybody
+      // supplied, and it beats an empty label in the screen reader.
+      alt: file.name ? file.name.replace(/\.[^.]+$/, '') : '',
+    };
+    this.transact(() => {
+      this.scene.add(shape);
+      this.assignFrames([shape.id]);
+      this.selection = [shape.id];
+    });
+    return null;
+  }
+
   private placeText(world: Vec): void {
     if (this.readOnly) return;
     this.undoManager.stopCapturing();
@@ -1568,6 +1610,7 @@ const TYPE_LABELS: Record<Shape['type'], string> = {
   pen: 'pen stroke',
   sticky: 'sticky note',
   text: 'text',
+  image: 'image',
   frame: 'frame',
   group: 'group',
   connector: 'connector',
@@ -1575,6 +1618,7 @@ const TYPE_LABELS: Record<Shape['type'], string> = {
 
 function describeShape(s: Shape): string {
   const label = TYPE_LABELS[s.type];
+  if (s.type === 'image') return s.alt.trim() ? `image "${s.alt.trim()}"` : 'image';
   if (s.type === 'sticky' || s.type === 'text') {
     const text = s.text.trim().replace(/\s+/g, ' ');
     return text ? `${label} "${text.length > 40 ? `${text.slice(0, 40)}…` : text}"` : `empty ${label}`;
@@ -1585,4 +1629,23 @@ function describeShape(s: Shape): string {
 
 function midpoint(a: Vec, b: Vec): Vec {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function readAsDataURL(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** The picture's own size, or null when the data will not decode. */
+function measureImage(src: string): Promise<{ w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }

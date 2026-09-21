@@ -83,6 +83,20 @@ export interface StickyShape extends Boxed {
   tags: string[];
 }
 
+export interface ImageShape extends Boxed {
+  type: 'image';
+  /**
+   * The picture itself, always a `data:image/...` URL. Nothing else is
+   * accepted: a remote URL would leak the board's contents to whoever serves
+   * it, would taint the canvas so PNG export stopped working, and would turn
+   * a board file into a way of making the person who opens it fetch a URL
+   * they never chose. See `validateShape`.
+   */
+  src: string;
+  /** What the picture shows, for the screen reader and while it loads. */
+  alt: string;
+}
+
 export interface TextShape extends Boxed {
   type: 'text';
   text: string;
@@ -128,6 +142,7 @@ export type Shape =
   | PenShape
   | StickyShape
   | TextShape
+  | ImageShape
   | FrameShape
   | GroupShape
   | ConnectorShape;

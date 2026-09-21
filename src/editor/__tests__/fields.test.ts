@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Shape, ShapeType } from '../../model/types';
-import { connector, ellipse, frame, group, line, pen, rect, sticky } from '../../model/__tests__/fixtures';
+import { connector, ellipse, frame, group, image, line, pen, rect, sticky } from '../../model/__tests__/fixtures';
 import { FIELDS, FIELD_LIST, fieldsFor, patchFor, shapesFor, valueOf } from '../fields';
 
-const SHAPE_TYPES: ShapeType[] = ['rect', 'ellipse', 'line', 'pen', 'sticky', 'text', 'frame', 'group', 'connector'];
+const SHAPE_TYPES: ShapeType[] = ['rect', 'ellipse', 'line', 'pen', 'sticky', 'text', 'image', 'frame', 'group', 'connector'];
 
 const text = (id: string, fontSize = 14, color = '#222222'): Shape => ({
   type: 'text',
@@ -26,6 +26,7 @@ const SAMPLES: Partial<Record<ShapeType, Shape>> = {
   pen: pen('p', 0, 0, [{ x: 0, y: 0 }]),
   sticky: sticky('n', 0, 0),
   text: text('t'),
+  image: image('i', 0, 0),
   connector: connector('c', null, null),
 };
 

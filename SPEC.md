@@ -273,7 +273,23 @@ needs a passing end-to-end test.
       › `zoom to selection` ›
       `fills the viewport with the selection and nothing else`,
       `is offered in the palette, and greyed with nothing selected`.
-- [ ] Image upload and paste from the clipboard.
+- [x] Image upload and paste from the clipboard. Drop a file on the board or
+      paste one: it arrives as an image shape that moves, resizes, groups and
+      syncs like anything else, with a description the property bar edits and
+      the screen reader reads. The picture travels inside the board as a data
+      URL, capped at 2 MB, so a board is self-contained: it works with no sync
+      server, a saved file opens anywhere, PNG export keeps working because
+      the canvas is never tainted, and **opening someone's board file never
+      fetches anything** — a `src` that is not an image data URL is refused
+      when the file is read.
+      Proof: [`e2e/images.spec.ts`](e2e/images.spec.ts) › `images` ›
+      `a pasted image lands in the middle of the view and is drawn`,
+      `a dropped image lands where it was dropped`,
+      `a file that is not an image, or one that is too big, is refused and says why`,
+      `an image survives a round trip, and a board file that points outside itself is refused`,
+      `the property bar edits the description, which is what a screen reader reads`,
+      `pasting with nothing on the system clipboard still pastes copied shapes`,
+      `a view-only board refuses a dropped image`.
 
 ## Unit coverage
 
@@ -287,6 +303,7 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
 - Minimap projection, both ways: `src/render/__tests__/minimap.test.ts`
+- What counts as a picture, and how big it arrives: `src/model/__tests__/images.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
 - Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`
