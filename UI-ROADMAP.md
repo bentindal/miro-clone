@@ -28,7 +28,8 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   *(Colours fixed in UI-0, the drawing itself in UI-3.)*
 - **No theme.** Sixty hardcoded hex values in `src/app.css`, twenty-four more
   in `src/render/renderer.ts`. Dark mode is currently impossible without a
-  find-and-replace across two languages. *(Fixed in UI-0: both are zero.)*
+  find-and-replace across two languages. *(Fixed in UI-0: both are zero. Dark
+  mode itself landed in UI-5, as one more token block.)*
 
 ## Why it is hard to extend today
 
@@ -251,14 +252,46 @@ and the dock's animation is `ui-slide-from-right` normally and `none` under
 reduced motion. `e2e/save-load.spec.ts` now asserts the malformed-file message
 arrives as an error toast **and that no dialog is raised at all**.
 
-## Phase UI-5: theme, density, accessibility
+## Phase UI-5: theme, density, accessibility — done
 
-1. **Dark mode.** One token block, both surfaces, because of UI-0.2. The
-   canvas side already works: see `e2e/theme.spec.ts`.
-2. **Density toggle** for smaller screens.
-3. **Focus rings** on the new primitives, contrast audit against the tokens,
-   reduced-motion honoured. The primitives already ship focus rings and a
-   `prefers-reduced-motion` rule; what is left is the contrast audit.
+1. **Dark mode.** [x] `tokens.css` grew a second and third block: dark for the
+   people who choose it, and a byte-identical dark for the people whose system
+   is dark and who have chosen nothing. The DOM and the canvas change together,
+   because `Editor.refreshTheme()` re-resolves the `--canvas-*` group whenever
+   the choice or the system preference changes.
+   *Not a single block:* CSS cannot share one declaration block between
+   `[data-theme='dark']` and `@media (prefers-color-scheme: dark)`. The two are
+   written twice and `contrast.test.ts` asserts they are identical, rather than
+   leaving it to whoever edits one of them next.
+   **`system` sets no attribute at all**, so the media query applies; `light`
+   has to be explicit, because it is the only way to beat a dark system.
+   **One colour does not follow the theme:** sticky and shape text. A note's
+   fill is a pale colour the person picked, in either theme, so its text is
+   `--canvas-shape-text`, dark in both. Flipping it with the theme would have
+   put light grey on pale yellow.
+2. **Density toggle.** [x] `comfortable` and `compact` in the board menu.
+   Compact redeclares five spacing steps, both control heights and two type
+   sizes, and **no colour**: a density that also changed colours would be a
+   second theme with a misleading name.
+3. **Contrast audit.** [x] `src/ui/__tests__/contrast.test.ts` parses the token
+   blocks and computes the WCAG ratio for every foreground/background pair the
+   UI actually draws, in both themes: 4.5:1 for text, 3:1 for borders and
+   controls. It found two real failures, both now fixed — `--border-strong` was
+   `#9aa0a6` on white (**2.64:1**), and dark `--accent` was `#5b8def` under
+   white text (**3.23:1**). The test also asserts the dark blocks are identical
+   and that dark overrides every colour light declares, so a token added to one
+   theme cannot silently keep the other theme's value.
+   Focus rings and `prefers-reduced-motion` already shipped in UI-0 and UI-4.
+
+*Proved by* `src/ui/__tests__/appearance.test.ts` (the attribute for each
+choice, `system` removing it, a bad stored value falling back rather than
+throwing, persistence, subscribers notified only on a real change, a stable
+snapshot so `useSyncExternalStore` cannot loop, and storage or `document`
+missing entirely), `src/ui/__tests__/contrast.test.ts` above, and
+`e2e/theme.spec.ts` — dark repaints the DOM and the canvas together, the
+choice survives a reload, the system decides when nothing is chosen, choosing
+light overrides a dark system, and compact shrinks a control **without
+changing its colour**.
 
 ## Phase UI-6: command layer
 
@@ -290,9 +323,9 @@ arrives as an error toast **and that no dialog is raised at all**.
 ## Sequencing
 
 UI-0 and UI-1 are the ones that change the impression, and UI-2 is the one
-that changes the cost of everything after. UI-0 through UI-4 are done. What
-is left is UI-5 (dark mode, density, a contrast audit) and UI-6 (the command
-registry and palette), either of which can be interleaved with the phase 3
+that changes the cost of everything after. UI-0 through UI-5 are done. What
+is left is UI-6 (the command registry and palette), which can be interleaved
+with the phase 3
 features still outstanding in [SPEC.md](SPEC.md) — rich text, minimap, image
 upload — which now have a shell, a set of primitives, a property schema, a
 themed canvas and somewhere to report failures to land in rather than add to.

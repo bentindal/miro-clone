@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button, Icon, IconButton, Panel, toast } from '../ui';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type Density, type ThemeChoice, Button, Icon, IconButton, Panel, appearance, toast } from '../ui';
 import { type SyncSession, saveUser } from '../sync/session';
 import { downloadBlob } from './download';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
+
+const THEME_CHOICES: { value: ThemeChoice; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
+const DENSITY_CHOICES: { value: Density; label: string }[] = [
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'compact', label: 'Compact' },
+];
 
 const STATUS_LABEL: Record<string, string> = {
   local: 'Local only',
@@ -25,6 +36,7 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
   const [open, setOpen] = useState<'share' | 'menu' | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const barRef = useRef<HTMLElement>(null);
+  const looks = useSyncExternalStore(appearance.subscribe, appearance.get, appearance.get);
 
   useEffect(() => {
     if (!session) return;
@@ -208,6 +220,31 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
               }}
             />
           </label>
+          <div className="ui-divider" data-orientation="horizontal" aria-hidden="true" />
+          <div className="menu-choice" role="group" aria-label="Theme">
+            <span className="prop-label">Theme</span>
+            {THEME_CHOICES.map((c) => (
+              <Button
+                key={c.value}
+                size="sm"
+                toggle="outline"
+                active={looks.theme === c.value}
+                data-action={`theme-${c.value}`}
+                aria-label={`${c.label} theme`}
+                onClick={() => appearance.set({ theme: c.value })}
+              >
+                {c.label}
+              </Button>
+            ))}
+          </div>
+          <div className="menu-choice" role="group" aria-label="Density">
+            <span className="prop-label">Density</span>
+            {DENSITY_CHOICES.map((c) => (
+              <Button key={c.value} size="sm" toggle="outline" active={looks.density === c.value} data-action={`density-${c.value}`} onClick={() => appearance.set({ density: c.value })}>
+                {c.label}
+              </Button>
+            ))}
+          </div>
         </Panel>
       )}
     </header>

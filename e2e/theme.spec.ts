@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openBoard } from './helpers';
+import { openBoardMenu, openBoard } from './helpers';
 
 /** Colour of one device pixel of the canvas, as `r,g,b`. */
 async function pixel(page: import('@playwright/test').Page, x: number, y: number): Promise<string> {
@@ -60,5 +60,78 @@ test.describe('theme', () => {
       return out;
     });
     expect(missing).toEqual([]);
+  });
+});
+
+test.describe('appearance', () => {
+  /** What the document root says, which is what the token blocks key off. */
+  const attrs = (page: import('@playwright/test').Page) =>
+    page.evaluate(() => ({
+      theme: document.documentElement.getAttribute('data-theme'),
+      density: document.documentElement.getAttribute('data-density'),
+    }));
+
+  const surfaceOf = (page: import('@playwright/test').Page) => page.locator('.top-bar').evaluate((el) => getComputedStyle(el).backgroundColor);
+
+  test('choosing dark repaints the DOM and the canvas together', async ({ page }) => {
+    await openBoard(page);
+    expect(await surfaceOf(page)).toBe('rgb(255, 255, 255)');
+    expect(await pixel(page, 57, 43)).toBe('244,245,247');
+
+    await openBoardMenu(page);
+    await page.locator('[data-action="theme-dark"]').click();
+
+    expect(await attrs(page)).toEqual({ theme: 'dark', density: null });
+    expect(await surfaceOf(page)).toBe('rgb(28, 31, 36)');
+    // The canvas cannot read CSS variables; this is the proof it re-resolved.
+    expect(await pixel(page, 57, 43)).toBe('19,21,25');
+    const theme = await page.evaluate(() => (window as never as { __wb: { theme: () => Record<string, string> } }).__wb.theme());
+    expect(theme.background).toBe('#131519');
+  });
+
+  test('the choice survives a reload', async ({ page }) => {
+    await openBoard(page);
+    await openBoardMenu(page);
+    await page.locator('[data-action="theme-dark"]').click();
+    await page.reload();
+    await expect(page.getByTestId('canvas')).toBeVisible();
+    expect(await attrs(page)).toEqual({ theme: 'dark', density: null });
+    expect(await pixel(page, 57, 43)).toBe('19,21,25');
+  });
+
+  // The default choice is 'system', which sets no attribute at all: that is
+  // what lets the prefers-color-scheme block apply.
+  test('with no choice made, the system decides', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await openBoard(page);
+    expect(await attrs(page)).toEqual({ theme: null, density: null });
+    expect(await surfaceOf(page)).toBe('rgb(28, 31, 36)');
+
+    await page.emulateMedia({ colorScheme: 'light' });
+    expect(await surfaceOf(page)).toBe('rgb(255, 255, 255)');
+  });
+
+  test('choosing light overrides a dark system', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await openBoard(page);
+    await openBoardMenu(page);
+    await page.locator('[data-action="theme-light"]').click();
+    expect(await attrs(page)).toEqual({ theme: 'light', density: null });
+    expect(await surfaceOf(page)).toBe('rgb(255, 255, 255)');
+  });
+
+  test('compact density shrinks the controls and nothing else', async ({ page }) => {
+    await openBoard(page);
+    const railButton = page.locator('.tool-rail [data-tool="select"]');
+    const before = (await railButton.boundingBox())!;
+    const colourBefore = await surfaceOf(page);
+
+    await openBoardMenu(page);
+    await page.locator('[data-action="density-compact"]').click();
+
+    expect(await attrs(page)).toEqual({ theme: null, density: 'compact' });
+    const after = (await railButton.boundingBox())!;
+    expect(after.height).toBeLessThan(before.height);
+    expect(await surfaceOf(page)).toBe(colourBefore);
   });
 });

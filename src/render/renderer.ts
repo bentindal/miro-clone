@@ -783,7 +783,7 @@ function drawStickyText(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: num
   const fit = stickyFit(ctx, s);
   if (fit.size * zoom < 4) return;
   ctx.font = fit.font;
-  ctx.fillStyle = theme.text;
+  ctx.fillStyle = theme.shapeText;
   ctx.textBaseline = 'top';
   const width = Math.max(s.w - STICKY_PAD * 2, 1);
   const maxLines = Math.max(1, Math.floor((s.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
@@ -812,7 +812,7 @@ function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, 
     ctx.stroke();
   }
   if (n > shown) {
-    ctx.fillStyle = theme.text;
+    ctx.fillStyle = theme.shapeText;
     ctx.font = '10px system-ui, sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';

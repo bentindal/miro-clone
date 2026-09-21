@@ -5,7 +5,7 @@ import { Dock } from './editor/Dock';
 import { ToolRail } from './editor/ToolRail';
 import { TopBar } from './editor/TopBar';
 import { ZoomCluster } from './editor/ZoomCluster';
-import { Toaster } from './ui';
+import { Toaster, appearance } from './ui';
 import { Home } from './Home';
 import { ApiError, NoSyncServerError, createBoard, getBoard, parseBoardLocation } from './sync/api';
 import { rememberBoard, updateRecentTitle } from './sync/recent';
@@ -34,6 +34,19 @@ export default function App() {
     return e;
   }, []);
   const [boot, setBoot] = useState<Boot>(() => (window.location.pathname === '/' ? { kind: 'home' } : { kind: 'loading' }));
+
+  // The canvas cannot read CSS variables, so it re-resolves them whenever the
+  // theme changes: by choice, or because the system changed under 'system'.
+  useEffect(() => {
+    const refresh = () => editor.refreshTheme();
+    const unsubscribe = appearance.subscribe(refresh);
+    const system = window.matchMedia('(prefers-color-scheme: dark)');
+    system.addEventListener('change', refresh);
+    return () => {
+      unsubscribe();
+      system.removeEventListener('change', refresh);
+    };
+  }, [editor]);
 
   useEffect(() => {
     if (boot.kind === 'home') return;
