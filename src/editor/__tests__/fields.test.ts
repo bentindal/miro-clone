@@ -37,6 +37,8 @@ function otherValue(field: Exclude<(typeof FIELD_LIST)[number], { kind: 'action'
       return current === '#010203' ? '#040506' : '#010203';
     case 'text':
       return 'a different label';
+    case 'tags':
+      return [...(current as readonly string[]), 'a-tag'];
     case 'number':
     case 'enum':
       return (field.options as readonly unknown[]).find((o) => o !== current);

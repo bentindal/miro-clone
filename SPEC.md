@@ -244,7 +244,20 @@ needs a passing end-to-end test.
       `is centred to start with, and follows the buttons in both directions`,
       `survives a round trip through the board file`,
       `a note written before alignment existed opens centred`.
-- [ ] Sticky notes that auto-fit their text; tags; voting dots.
+- [x] Sticky notes that auto-fit their text; tags; voting dots. A note shrinks
+      its font to fit and grows taller once it cannot shrink further; anyone
+      can add a vote, shown as dots with a count; tags are short labels drawn
+      as chips along the top of the note, edited from the property bar. The
+      tag row takes its space off the text rather than sitting over it, so the
+      auto-fit answers a tagged note with a smaller size or a taller note.
+      Proof: [`e2e/sticky-fit.spec.ts`](e2e/sticky-fit.spec.ts) › `sticky notes auto-fit and votes` ›
+      `the font shrinks as text grows, grows back when the note is resized, and the note grows when it cannot shrink further`,
+      `votes toggle per person, show a count, and sync`;
+      [`e2e/sticky-tags.spec.ts`](e2e/sticky-tags.spec.ts) › `sticky note tags` ›
+      `tags are added and removed from the property bar and drawn on the note`,
+      `the tag row takes its space off the text rather than overlapping it`,
+      `tags survive a round trip through the board file, and older notes open with none`,
+      `a tag added by one person appears for the other`.
 - [ ] Rich text: bold, lists, links.
 - [ ] Minimap and zoom to selection.
 - [ ] Image upload and paste from the clipboard.

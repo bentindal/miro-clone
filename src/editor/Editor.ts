@@ -50,7 +50,7 @@ import {
 import { type AlignKind, type Guide, type SpacingGuide, alignDeltas, computeSnap, distributeDeltas, snapEdges } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
-import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
+import { STICKY_PAD, fitText, requiredHeight, stickyTextBox, tagInset } from '../model/textFit';
 import { CommentStore } from '../sync/comments';
 import type { Tool } from './tools';
 import { runShortcut } from './shortcuts';
@@ -1094,6 +1094,7 @@ export class Editor {
         align: 'center',
         valign: 'middle',
         votes: [],
+        tags: [],
       };
       this.scene.add(s);
       this.assignFrames([s.id]);
@@ -1155,8 +1156,11 @@ export class Editor {
     else if (s.type === 'connector') this.scene.update<ConnectorShape>(s.id, { label: text.replace(/\n/g, ' ') });
     else if (s.type === 'sticky') {
       // The note shrinks its font to fit; once it cannot shrink further it grows taller instead.
-      const fit = fitText(text, s.w, s.h, STICKY_PAD, this.measure);
-      const h = fit.overflow ? Math.max(s.h, requiredHeight(text, s.w, STICKY_PAD, this.measure)) : s.h;
+      // Tags take a row off the top, so both the fit and the grown height are
+      // worked out against the box the text actually gets.
+      const box = stickyTextBox(s);
+      const fit = fitText(text, box.w, box.h, STICKY_PAD, this.measure);
+      const h = fit.overflow ? Math.max(s.h, requiredHeight(text, box.w, STICKY_PAD, this.measure) + tagInset(s.tags)) : s.h;
       this.scene.update<StickyShape>(s.id, { text, h });
     } else if (hasText(s)) this.scene.update<StickyShape | TextShape>(s.id, { text });
     this.notify();

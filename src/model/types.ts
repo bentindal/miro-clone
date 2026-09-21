@@ -79,6 +79,8 @@ export interface StickyShape extends Boxed {
   valign: TextVAlign;
   /** Names of the people who voted for this note, shown as dots. */
   votes: string[];
+  /** Short labels drawn as chips along the top of the note. */
+  tags: string[];
 }
 
 export interface TextShape extends Boxed {

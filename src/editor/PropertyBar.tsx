@@ -3,7 +3,7 @@ import type { Shape } from '../model/types';
 import { Button, type IconName, IconButton, Panel, Select, Swatch, useMeasure } from '../ui';
 import { CommandMenuItem } from './CommandButton';
 import type { Editor } from './Editor';
-import { type Field, type FieldKey, type StylePatch, fieldsFor, shapesFor, valueOf } from './fields';
+import { type Field, type FieldKey, type StylePatch, type TagsField, fieldsFor, shapesFor, valueOf } from './fields';
 import { useEditorVersion } from './useEditor';
 
 const ALIGNMENTS: { kind: 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bottom'; label: string; icon: IconName }[] = [
@@ -121,7 +121,7 @@ type Keyed = Field & { key: FieldKey };
 function groupFields(leaves: readonly Shape[]): [string, Keyed[]][] {
   const out: [string, Keyed[]][] = [];
   for (const field of fieldsFor(leaves)) {
-    if (field.kind === 'text' && field.singleOnly && shapesFor(field, leaves).length !== 1) continue;
+    if (field.singleOnly && shapesFor(field, leaves).length !== 1) continue;
     const last = out[out.length - 1];
     if (last && last[0] === field.group) last[1].push(field);
     else out.push([field.group, [field]]);
@@ -261,5 +261,69 @@ function FieldControl({ field, shapes, editor }: { field: Keyed; shapes: Shape[]
           }}
         />
       );
+    case 'tags':
+      return <TagsControl field={field} tags={Array.isArray(value) ? (value as string[]) : []} onChange={apply} />;
   }
+}
+
+/**
+ * Chips with a remove button, and a field that adds one on Enter. The list is
+ * rewritten whole on every change, so the patch is one value like any other
+ * field's and undo puts the whole list back.
+ */
+function TagsControl({ field, tags, onChange }: { field: TagsField & { key: FieldKey }; tags: string[]; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+
+  const add = () => {
+    const tag = draft.trim().slice(0, field.maxLength);
+    setDraft('');
+    // A tag already on the note is not added twice: it would read as two
+    // chips saying the same thing, and removing one would look broken.
+    if (!tag || tags.includes(tag)) return;
+    onChange([...tags, tag]);
+  };
+
+  return (
+    <>
+      {tags.map((tag) => (
+        <span key={tag} className="tag-chip" data-testid={`prop-${field.id}-chip`} data-tag={tag}>
+          {tag}
+          <IconButton
+            size="sm"
+            icon="close"
+            label={`Remove tag ${tag}`}
+            variant="ghost"
+            keepFocus
+            data-testid={`prop-${field.id}-remove`}
+            data-tag={tag}
+            onClick={() => onChange(tags.filter((t) => t !== tag))}
+          />
+        </span>
+      ))}
+      <input
+        className="ui-input tag-input"
+        data-testid={`prop-${field.id}`}
+        aria-label={field.a11y}
+        placeholder={field.placeholder}
+        maxLength={field.maxLength}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={add}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            add();
+            e.preventDefault();
+          } else if (e.key === 'Escape') {
+            setDraft('');
+            (e.target as HTMLInputElement).blur();
+          } else if (e.key === 'Backspace' && draft === '' && tags.length > 0) {
+            // Backspace on an empty field takes the last chip, as every other
+            // token field people use does.
+            onChange(tags.slice(0, -1));
+          }
+        }}
+      />
+    </>
+  );
 }

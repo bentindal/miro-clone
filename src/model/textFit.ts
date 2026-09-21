@@ -13,6 +13,45 @@ export const STICKY_MAX_FONT = 36;
 export const STICKY_LINE_HEIGHT = 1.25;
 export const STICKY_PAD = 10;
 
+/** Tag chip metrics, shared so the renderer and the in-place editor agree. */
+export const TAG_FONT = 11;
+export const TAG_HEIGHT = 16;
+export const TAG_PAD = 6;
+export const TAG_GAP = 4;
+
+/**
+ * The box a note's text gets. Tags take a row off the top, so the two never
+ * overlap and a note with tags simply has less room for words — which the
+ * auto-fit then answers by choosing a smaller size or growing the note.
+ */
+export function stickyTextBox(s: { x: number; y: number; w: number; h: number; tags: readonly string[] }): { x: number; y: number; w: number; h: number } {
+  const inset = tagInset(s.tags);
+  return { x: s.x, y: s.y + inset, w: s.w, h: Math.max(s.h - inset, 1) };
+}
+
+/** How much height the tag row takes off the top of a note, zero when there are none. */
+export function tagInset(tags: readonly string[]): number {
+  return tags.length > 0 ? TAG_HEIGHT + TAG_GAP : 0;
+}
+
+/** Chip widths for `tags`, and how many fit across a note `w` wide. */
+export function layoutTags(tags: readonly string[], w: number, measure: Measure): { widths: number[]; shown: number } {
+  const font = fontString(TAG_FONT);
+  const widths = tags.map((t) => Math.ceil(measure(t, font)) + TAG_PAD * 2);
+  const room = Math.max(w - STICKY_PAD * 2, 1);
+  let used = 0;
+  let shown = 0;
+  for (const width of widths) {
+    const next = used + width + (shown > 0 ? TAG_GAP : 0);
+    // The first chip is always drawn, even on a note too narrow for it: a
+    // clipped tag still says the note has one, an empty row says nothing.
+    if (next > room && shown > 0) break;
+    used = next;
+    shown++;
+  }
+  return { widths, shown };
+}
+
 export function fontString(size: number): string {
   return `${size}px system-ui, sans-serif`;
 }

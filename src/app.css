@@ -568,6 +568,35 @@
   width: 110px;
 }
 
+.tag-input {
+  width: 92px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 140px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.tag-chip .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.tag-chip .ui-button {
+  min-width: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
 .empty-board {
   position: absolute;
   inset: 0;

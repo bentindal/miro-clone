@@ -174,6 +174,8 @@ export function validateShape(raw: unknown): Shape {
         align: oneOf(raw.align, TEXT_ALIGNS, 'center'),
         valign: oneOf(raw.valign, TEXT_VALIGNS, 'middle'),
         votes: Array.isArray(raw.votes) ? raw.votes.filter((v): v is string => typeof v === 'string') : [],
+        // Notes saved before notes had tags open with none.
+        tags: Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : [],
       };
     case 'text':
       return {

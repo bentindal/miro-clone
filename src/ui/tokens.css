@@ -60,6 +60,7 @@
   --canvas-pin-open: #f9a825;
   --canvas-pin-resolved: #9aa0a6;
   --canvas-sticky-shadow: rgba(0, 0, 0, 0.12);
+  --canvas-tag-bg: rgba(34, 34, 34, 0.14);
   --canvas-vote: #e53935;
   --canvas-shadow: rgba(0, 0, 0, 0.18);
   /*
@@ -158,6 +159,8 @@
   --canvas-pin-open: #f9a825;
   --canvas-pin-resolved: #6b7280;
   --canvas-sticky-shadow: rgba(0, 0, 0, 0.45);
+  /* Over a note's own pale fill, so it stays the same in both themes. */
+  --canvas-tag-bg: rgba(34, 34, 34, 0.14);
   --canvas-vote: #ef5350;
   --canvas-shadow: rgba(0, 0, 0, 0.55);
   /*
@@ -218,6 +221,10 @@
     --canvas-pin-open: #f9a825;
     --canvas-pin-resolved: #6b7280;
     --canvas-sticky-shadow: rgba(0, 0, 0, 0.45);
+    /* Over a note's own pale fill, so it stays the same in both themes. */
+    --canvas-tag-bg: rgba(34, 34, 34, 0.14);
+  /* Over a note's own pale fill, so it stays the same in both themes. */
+  --canvas-tag-bg: rgba(34, 34, 34, 0.14);
     --canvas-vote: #ef5350;
     --canvas-shadow: rgba(0, 0, 0, 0.55);
     /*
