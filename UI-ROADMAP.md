@@ -28,7 +28,8 @@ Judged against a mature whiteboard, the gap is not taste, it is structure.
   *(Colours fixed in UI-0, the drawing itself in UI-3.)*
 - **No theme.** Sixty hardcoded hex values in `src/app.css`, twenty-four more
   in `src/render/renderer.ts`. Dark mode is currently impossible without a
-  find-and-replace across two languages. *(Fixed in UI-0: both are zero.)*
+  find-and-replace across two languages. *(Fixed in UI-0: both are zero. Dark
+  mode itself landed in UI-5, as one more token block.)*
 
 ## Why it is hard to extend today
 
@@ -45,7 +46,8 @@ This is the part that matters more than the look.
   this to three: the `Tool` union, one `TOOL_META` entry and one `RAIL_GROUPS`
   entry, all in `src/editor/tools.ts`. `TOOLS` and the keyboard map are
   derived from the table, so a shortcut cannot drift from the one its tooltip
-  advertises. The pointer-down switch is behaviour, and is UI-6's to absorb.)*
+  advertises. The pointer-down switch is behaviour: UI-6 looked at it and left
+  it where it is, for the reason recorded there.)*
 - **"A button" is defined four times in CSS** (`.toolbar button`,
   `.property-bar button`, `.thread-head button`, `.composer-actions button`),
   each with its own padding, border and radius. *(Fixed in UI-0: one
@@ -55,7 +57,8 @@ This is the part that matters more than the look.
   would fight it for the same pixels. *(Fixed in UI-1: `registerPanel` and a
   dock that renders whatever is registered.)*
 - **Buttons and shortcuts are wired separately**, so every action is
-  implemented twice and can drift.
+  implemented twice and can drift. *(Fixed in UI-6: one command registry that
+  the buttons, menus, keyboard, palette and context menu all read.)*
 
 ## Phase UI-0: foundations — done
 
@@ -251,26 +254,122 @@ and the dock's animation is `ui-slide-from-right` normally and `none` under
 reduced motion. `e2e/save-load.spec.ts` now asserts the malformed-file message
 arrives as an error toast **and that no dialog is raised at all**.
 
-## Phase UI-5: theme, density, accessibility
+## Phase UI-5: theme, density, accessibility — done
 
-1. **Dark mode.** One token block, both surfaces, because of UI-0.2. The
-   canvas side already works: see `e2e/theme.spec.ts`.
-2. **Density toggle** for smaller screens.
-3. **Focus rings** on the new primitives, contrast audit against the tokens,
-   reduced-motion honoured. The primitives already ship focus rings and a
-   `prefers-reduced-motion` rule; what is left is the contrast audit.
+1. **Dark mode.** [x] `tokens.css` grew a second and third block: dark for the
+   people who choose it, and a byte-identical dark for the people whose system
+   is dark and who have chosen nothing. The DOM and the canvas change together,
+   because `Editor.refreshTheme()` re-resolves the `--canvas-*` group whenever
+   the choice or the system preference changes.
+   *Not a single block:* CSS cannot share one declaration block between
+   `[data-theme='dark']` and `@media (prefers-color-scheme: dark)`. The two are
+   written twice and `contrast.test.ts` asserts they are identical, rather than
+   leaving it to whoever edits one of them next.
+   **`system` sets no attribute at all**, so the media query applies; `light`
+   has to be explicit, because it is the only way to beat a dark system.
+   **One colour does not follow the theme:** sticky and shape text. A note's
+   fill is a pale colour the person picked, in either theme, so its text is
+   `--canvas-shape-text`, dark in both. Flipping it with the theme would have
+   put light grey on pale yellow.
+2. **Density toggle.** [x] `comfortable` and `compact` in the board menu.
+   Compact redeclares five spacing steps, both control heights and two type
+   sizes, and **no colour**: a density that also changed colours would be a
+   second theme with a misleading name.
+3. **Contrast audit.** [x] `src/ui/__tests__/contrast.test.ts` parses the token
+   blocks and computes the WCAG ratio for every foreground/background pair the
+   UI actually draws, in both themes: 4.5:1 for text, 3:1 for borders and
+   controls. It found two real failures, both now fixed — `--border-strong` was
+   `#9aa0a6` on white (**2.64:1**), and dark `--accent` was `#5b8def` under
+   white text (**3.23:1**). The test also asserts the dark blocks are identical
+   and that dark overrides every colour light declares, so a token added to one
+   theme cannot silently keep the other theme's value.
+   Focus rings and `prefers-reduced-motion` already shipped in UI-0 and UI-4.
 
-## Phase UI-6: command layer
+*Proved by* `src/ui/__tests__/appearance.test.ts` (the attribute for each
+choice, `system` removing it, a bad stored value falling back rather than
+throwing, persistence, subscribers notified only on a real change, a stable
+snapshot so `useSyncExternalStore` cannot loop, and storage or `document`
+missing entirely), `src/ui/__tests__/contrast.test.ts` above, and
+`e2e/theme.spec.ts` — dark repaints the DOM and the canvas together, the
+choice survives a reload, the system decides when nothing is chosen, choosing
+light overrides a dark system, and compact shrinks a control **without
+changing its colour**.
 
-1. **Command registry**: `{ id, label, icon, shortcut, group, run, isEnabled,
-   isActive }`. Buttons, menus, shortcuts and the palette all read from it,
-   so an action is defined once. UI-1 made a start: the zoom cluster and the
-   arrange menu are already tables of entries, and `tools.ts` already derives
-   the tool shortcuts. The registry generalises that and absorbs the
-   pointer-down switch.
-2. **Command palette** on Ctrl+K.
-3. **Context menu** on right-click, from the same registry.
-4. **User-remappable shortcuts**, which the registry makes almost free.
+## Phase UI-6: command layer — done
+
+1. **Command registry.** [x] `src/editor/commands.ts` declares every action
+   once: `{ id, label, icon, group, shortcut, run, isEnabled, isActive,
+   writes, inPalette }`. The zoom cluster, the arrange menu, the board menu,
+   the keyboard, the palette and the context menu are all lists of ids now.
+   `ZoomCluster.tsx` is a layout and nothing else — it knows the order of the
+   buttons and where the dividers go, not what any of them do.
+   `Editor.onKeyDown` is one line.
+
+   | Lines naming a specific action | Before | After |
+   | --- | --- | --- |
+   | `Editor.onKeyDown` | 111 | 1 |
+   | `ZoomCluster.tsx` | 21 | 0 |
+   | `PropertyBar.tsx` arrange table | 9 | 1 |
+
+   **`writes` replaced the read-only key list.** `Board.tsx` used to carry two
+   hand-maintained arrays of keys a view-only visitor was allowed to press.
+   They are gone: a command declares whether it changes the board and the
+   registry refuses it. One behaviour changed as a result, deliberately —
+   copying is allowed on a view-only board, because it does not change
+   anything and the same person can already export the board as a PNG.
+   Pasting and cutting are still refused.
+
+   **Not done as written: the pointer-down switch is still a switch.** The
+   roadmap said the registry would absorb it. It should not. Those branches
+   have no label, no icon, no shortcut and no menu; they take a world point,
+   the hit-test result and the modifier state, and they *start a drag* rather
+   than perform an action. Giving them a `run(editor)` signature nothing calls
+   would be a table for the sake of having one. Per-tool drag behaviour wants
+   a tool-behaviour table of its own, which is a different job.
+2. **Command palette** [x] on Ctrl+K, filtering on the command's name and its
+   group. A command that cannot run right now is listed and greyed rather than
+   hidden: "Group is there but greyed" answers a question that "Group is
+   missing" does not. Arrow keys move over the runnable rows only, so the
+   highlight can never sit on a dead one.
+3. **Context menu** [x] on right-click: one list of ids for a selection and one
+   for bare canvas. Right-clicking a shape selects it first, so the menu cannot
+   offer to delete something the person is not pointing at, and the menu flips
+   back inside the board rather than running off the bottom-right corner.
+4. **User-remappable shortcuts.** [x] `src/editor/shortcuts.ts` holds a store
+   of overrides and a `Shortcuts` panel registered into the dock — one
+   `registerPanel` call, which is what UI-1 built that seam for. Press a
+   command's key button, then the keys you want. Only the differences from the
+   defaults are stored, so a default that changes later still reaches people
+   who never remapped it.
+   **A chord runs one command.** Rebinding takes the key off whoever held it
+   and says so in a toast, rather than leaving a second owner that silently
+   never fires.
+
+   Chords have one spelling, which is what makes the table checkable:
+   modifiers in a fixed order, single characters upper-cased, and **Shift named
+   only for a letter or a named key**. `Shift+]` reports `}`, so spelling it
+   `Shift+}` would give one key press two names and whichever a command
+   declared, the other would never fire. A unit test presses every chord in the
+   registry and fails if the key press does not produce it, so a shortcut that
+   could never fire cannot be declared.
+
+*Proved by* `src/editor/__tests__/commands.test.ts` (unique ids, an icon that
+exists, no chord claimed twice, every declared chord reachable from a real key
+press, every tool present with the key the rail advertises, `isEnabled`
+answering on a fresh board, and read-only disabling exactly the writing
+commands and no others — plus dispatch: Ctrl+G, G and Ctrl+Shift+G telling
+themselves apart, nudge by one and by ten, an unbound key left for the browser,
+and a remap taking effect), `src/editor/__tests__/shortcuts.test.ts` (the chord
+spelling rules, defaults, rebinding, taking a chord from its previous owner,
+storing only the differences, reading a remap back, falling back on a stored
+value it cannot use, ignoring an override for a command that no longer exists,
+resetting, notifying only on a real change with a stable snapshot, and storage
+that throws), and `e2e/commands.spec.ts` — Ctrl+K opens, filters and runs; the
+arrow keys move the highlight; a command that cannot run is listed disabled;
+right-click selects the shape under the pointer and deletes it; the canvas menu
+offers different commands and closes on Escape; the menu stays inside the board
+in the bottom-right corner; and a rebind reaches the keyboard, the menus and
+the palette at once, survives a reload and resets.
 
 ## What not to do
 
@@ -290,12 +389,17 @@ arrives as an error toast **and that no dialog is raised at all**.
 ## Sequencing
 
 UI-0 and UI-1 are the ones that change the impression, and UI-2 is the one
-that changes the cost of everything after. UI-0 through UI-4 are done. What
-is left is UI-5 (dark mode, density, a contrast audit) and UI-6 (the command
-registry and palette), either of which can be interleaved with the phase 3
-features still outstanding in [SPEC.md](SPEC.md) — rich text, minimap, image
-upload — which now have a shell, a set of primitives, a property schema, a
-themed canvas and somewhere to report failures to land in rather than add to.
+that changes the cost of everything after. **UI-0 through UI-6 are done.**
+What is left is the phase 3 feature work still outstanding in
+[SPEC.md](SPEC.md) — rich text, minimap, image upload, sticky tags — which now
+has a shell, a set of primitives, a property schema, a themed canvas, a command
+registry and somewhere to report failures to land in rather than add to.
+
+Adding a feature now costs: the shape type and its serialiser, one field
+descriptor, one `TOOL_META` and `RAIL_GROUPS` entry if it needs a tool, one
+`registerPanel` call if it needs a panel, and one `COMMANDS` entry per action
+it offers. None of those touch the layout, the keyboard, the palette or the
+theme.
 
 The phase 3 feature work in [SPEC.md](SPEC.md) (rich text, minimap, image
 upload) should land after UI-1, so each new surface uses the shell and the

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Shape } from '../model/types';
 import { Button, type IconName, IconButton, Panel, Select, Swatch, useMeasure } from '../ui';
+import { CommandMenuItem } from './CommandButton';
 import type { Editor } from './Editor';
 import { type Field, type FieldKey, type StylePatch, fieldsFor, shapesFor, valueOf } from './fields';
 import { useEditorVersion } from './useEditor';
@@ -14,16 +15,12 @@ const ALIGNMENTS: { kind: 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bo
   { kind: 'bottom', label: 'Align bottom', icon: 'alignBottom' },
 ];
 
-/** Arranging the selection: no longer a permanent strip at the top of the app. */
-const ARRANGE: { id: string; label: string; icon: IconName; run: (e: Editor) => void; enabled: (e: Editor) => boolean }[] = [
-  { id: 'group', label: 'Group', icon: 'group', run: (e) => e.groupSelection(), enabled: (e) => e.selection.length >= 2 },
-  { id: 'ungroup', label: 'Ungroup', icon: 'ungroup', run: (e) => e.ungroupSelection(), enabled: (e) => e.selection.some((id) => e.scene.get(id)?.type === 'group') },
-  { id: 'bring-forward', label: 'Bring forward', icon: 'forward', run: (e) => e.bringForward(), enabled: () => true },
-  { id: 'send-backward', label: 'Send backward', icon: 'backward', run: (e) => e.sendBackward(), enabled: () => true },
-  { id: 'bring-to-front', label: 'Bring to front', icon: 'front', run: (e) => e.bringToFront(), enabled: () => true },
-  { id: 'send-to-back', label: 'Send to back', icon: 'back', run: (e) => e.sendToBack(), enabled: () => true },
-  { id: 'delete', label: 'Delete', icon: 'trash', run: (e) => e.deleteSelection(), enabled: () => true },
-];
+/**
+ * Arranging the selection: no longer a permanent strip at the top of the app,
+ * and no longer a table of its own. These are ids into the command registry,
+ * so the menu, the keyboard and the palette cannot drift apart.
+ */
+const ARRANGE = ['group', 'ungroup', 'bring-forward', 'send-backward', 'bring-to-front', 'send-to-back', 'delete'];
 
 /** First-render estimate only; the bar measures itself once it is on screen. */
 const BAR_WIDTH = 520;
@@ -108,23 +105,8 @@ export function PropertyBar({ editor }: { editor: Editor }) {
         />
         {arrangeOpen && (
           <Panel className="prop-menu-panel" data-testid="arrange-menu" role="menu">
-            {ARRANGE.map((a) => (
-              <Button
-                key={a.id}
-                size="sm"
-                variant="ghost"
-                icon={a.icon}
-                role="menuitem"
-                keepFocus
-                data-action={a.id}
-                disabled={!a.enabled(editor)}
-                onClick={() => {
-                  a.run(editor);
-                  setArrangeOpen(false);
-                }}
-              >
-                {a.label}
-              </Button>
+            {ARRANGE.map((id) => (
+              <CommandMenuItem key={id} editor={editor} id={id} onRun={() => setArrangeOpen(false)} />
             ))}
           </Panel>
         )}

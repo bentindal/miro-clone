@@ -148,6 +148,21 @@
   width: 100%;
 }
 
+.menu-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+}
+
+.menu-choice .prop-label {
+  flex: 1;
+}
+
+.menu-choice .ui-button {
+  width: auto;
+}
+
 .board canvas {
   display: block;
   width: 100%;
@@ -587,13 +602,142 @@
   background: var(--surface);
 }
 
+/* ---- command palette ---------------------------------------------------- */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: var(--scrim);
+}
+
+.palette {
+  animation: ui-rise var(--duration-base) var(--ease);
+  width: min(560px, calc(100vw - 2 * var(--space-7)));
+  max-height: 60vh;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.palette-input {
+  width: 100%;
+  font-size: var(--text-lg);
+}
+
+.palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.palette-empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  color: var(--text-muted);
+}
+
+.palette-row {
+  justify-content: flex-start;
+  width: 100%;
+  gap: var(--space-4);
+}
+
+.palette-row[data-active='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.palette-label {
+  flex: 1;
+  text-align: left;
+}
+
+.palette-group {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---- context menu ------------------------------------------------------- */
+
+.context-menu {
+  animation: ui-rise var(--duration-fast) var(--ease);
+  position: absolute;
+  min-width: 200px;
+  padding: var(--space-2);
+  gap: var(--space-1);
+  z-index: 7;
+}
+
+.context-menu .ui-button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.menu-shortcut {
+  margin-left: auto;
+  padding-left: var(--space-5);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--text-sm);
+}
+
+/* ---- shortcuts panel ---------------------------------------------------- */
+
+.shortcuts-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.shortcuts-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.shortcut-group h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-2);
+}
+
+.shortcut-label {
+  flex: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dock-panel,
   .board-menu,
   .prop-menu-panel,
   .share-panel,
   .property-bar,
-  .empty-board {
+  .empty-board,
+  .palette,
+  .context-menu {
     animation: none;
   }
 }

@@ -19,6 +19,12 @@ export interface CanvasTheme {
   surface: string;
   text: string;
   textMuted: string;
+  /**
+   * Text drawn on a shape's own fill. A sticky note is a pale colour the
+   * person picked, whatever the theme, so its text cannot follow the theme
+   * the way the rest of the canvas does.
+   */
+  shapeText: string;
   /** Alignment and equal-spacing markers. */
   guide: string;
   frameFill: string;
@@ -41,6 +47,7 @@ export const CANVAS_TOKENS: Record<keyof CanvasTheme, string> = {
   surface: '--surface',
   text: '--text',
   textMuted: '--text-muted',
+  shapeText: '--canvas-shape-text',
   guide: '--canvas-guide',
   frameFill: '--canvas-frame-fill',
   frameBorder: '--canvas-frame-border',
@@ -65,6 +72,7 @@ export const LIGHT_CANVAS_THEME: CanvasTheme = {
   surface: '#ffffff',
   text: '#222222',
   textMuted: '#5f6368',
+  shapeText: '#222222',
   guide: '#e91e63',
   frameFill: '#ffffff',
   frameBorder: '#9aa0a6',

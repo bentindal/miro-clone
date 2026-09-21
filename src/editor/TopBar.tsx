@@ -1,9 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button, Icon, IconButton, Panel, toast } from '../ui';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { type Density, type ThemeChoice, Button, Icon, IconButton, Panel, appearance, toast } from '../ui';
 import { type SyncSession, saveUser } from '../sync/session';
-import { downloadBlob } from './download';
+import { CommandMenuItem } from './CommandButton';
 import type { Editor } from './Editor';
 import { useEditorVersion } from './useEditor';
+
+const THEME_CHOICES: { value: ThemeChoice; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
+const DENSITY_CHOICES: { value: Density; label: string }[] = [
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'compact', label: 'Compact' },
+];
+
+/**
+ * The board menu is a list of command ids. Loading a board is not among them:
+ * it needs a file input, which is a DOM affordance rather than something a
+ * `run(editor)` can produce, so it stays hand-written below.
+ */
+const MENU_COMMANDS = ['palette', 'shortcuts', 'export-png', 'save-json'];
 
 const STATUS_LABEL: Record<string, string> = {
   local: 'Local only',
@@ -25,6 +43,7 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
   const [open, setOpen] = useState<'share' | 'menu' | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const barRef = useRef<HTMLElement>(null);
+  const looks = useSyncExternalStore(appearance.subscribe, appearance.get, appearance.get);
 
   useEffect(() => {
     if (!session) return;
@@ -58,26 +77,6 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
     }
     setCopied(key);
     window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
-  };
-
-  const exportPNG = () => {
-    const canvas = editor.exportPNGCanvas(2);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        downloadBlob(blob, 'board.png');
-        toast('Exported board.png', 'success');
-      } else {
-        toast('Could not export this board as a PNG', 'error');
-      }
-    }, 'image/png');
-    setOpen(null);
-  };
-
-  const saveJSON = () => {
-    const json = JSON.stringify(editor.toBoardFile(), null, 2);
-    downloadBlob(new Blob([json], { type: 'application/json' }), 'board.json');
-    toast('Saved board.json', 'success');
-    setOpen(null);
   };
 
   const loadJSON = (file: File | undefined) => {
@@ -187,12 +186,9 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
       )}
       {open === 'menu' && (
         <Panel className="board-menu" data-testid="board-menu" role="menu">
-          <Button icon="image" variant="ghost" role="menuitem" data-action="export-png" onClick={exportPNG}>
-            Export as PNG
-          </Button>
-          <Button icon="save" variant="ghost" role="menuitem" data-action="save-json" onClick={saveJSON}>
-            Save board
-          </Button>
+          {MENU_COMMANDS.map((id) => (
+            <CommandMenuItem key={id} editor={editor} id={id} onRun={() => setOpen(null)} />
+          ))}
           <label className={`ui-button file-button${editor.readOnly ? ' disabled' : ''}`} data-variant="ghost" data-size="md" role="menuitem">
             <Icon name="load" />
             Load board
@@ -208,6 +204,31 @@ export function TopBar({ editor, session, mode }: TopBarProps) {
               }}
             />
           </label>
+          <div className="ui-divider" data-orientation="horizontal" aria-hidden="true" />
+          <div className="menu-choice" role="group" aria-label="Theme">
+            <span className="prop-label">Theme</span>
+            {THEME_CHOICES.map((c) => (
+              <Button
+                key={c.value}
+                size="sm"
+                toggle="outline"
+                active={looks.theme === c.value}
+                data-action={`theme-${c.value}`}
+                aria-label={`${c.label} theme`}
+                onClick={() => appearance.set({ theme: c.value })}
+              >
+                {c.label}
+              </Button>
+            ))}
+          </div>
+          <div className="menu-choice" role="group" aria-label="Density">
+            <span className="prop-label">Density</span>
+            {DENSITY_CHOICES.map((c) => (
+              <Button key={c.value} size="sm" toggle="outline" active={looks.density === c.value} data-action={`density-${c.value}`} onClick={() => appearance.set({ density: c.value })}>
+                {c.label}
+              </Button>
+            ))}
+          </div>
         </Panel>
       )}
     </header>

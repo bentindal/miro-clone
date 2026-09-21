@@ -171,6 +171,56 @@ const GLYPHS = {
       <rect x="8" y="9.5" width="8" height="5" rx="1" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="1.5" />
+      <path d="M15 5.5A1.5 1.5 0 0 0 13.5 4h-8A1.5 1.5 0 0 0 4 5.5v8A1.5 1.5 0 0 0 5.5 15" />
+    </>
+  ),
+  cut: (
+    <>
+      <circle cx="6.5" cy="18" r="2.5" />
+      <circle cx="17.5" cy="18" r="2.5" />
+      <path d="M8.3 16.2 18 3M15.7 16.2 6 3" />
+    </>
+  ),
+  paste: (
+    <>
+      <path d="M9 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H15" />
+      <rect x="9" y="2.5" width="6" height="4" rx="1" />
+    </>
+  ),
+  duplicate: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="1.5" />
+      <path d="M15 4H5.5A1.5 1.5 0 0 0 4 5.5V15" />
+      <path d="M11.5 14.5h6M14.5 11.5v6" />
+    </>
+  ),
+  selectAll: (
+    <>
+      <path d="M3 7.5V5.5A2.5 2.5 0 0 1 5.5 3h2M16.5 3h2A2.5 2.5 0 0 1 21 5.5v2M21 16.5v2a2.5 2.5 0 0 1-2.5 2.5h-2M7.5 21h-2A2.5 2.5 0 0 1 3 18.5v-2" />
+      <rect x="8" y="8" width="8" height="8" rx="1" />
+    </>
+  ),
+  command: (
+    <>
+      <path d="M9 9h6v6H9z" />
+      <path d="M9 9V7.5a2.5 2.5 0 1 0-2.5 2.5H9M15 9V7.5A2.5 2.5 0 1 1 17.5 10H15M9 15v1.5A2.5 2.5 0 1 1 6.5 14H9M15 15v1.5a2.5 2.5 0 1 0 2.5-2.5H15" />
+    </>
+  ),
+  keyboard: (
+    <>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 13.5h.01M8 15h8" />
+    </>
+  ),
+  reset: (
+    <>
+      <path d="M4 5.5v5h5" />
+      <path d="M4.6 14a8 8 0 1 0 .8-5.4" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof GLYPHS;

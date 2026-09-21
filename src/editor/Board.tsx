@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Editor, Modifiers } from './Editor';
+import { ContextMenu } from './ContextMenu';
 import { EmptyBoard } from './EmptyBoard';
 import { PropertyBar } from './PropertyBar';
 import { TextEditorOverlay } from './TextEditorOverlay';
@@ -15,6 +16,8 @@ export function Board({ editor }: { editor: Editor }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cursor, setCursor] = useState('default');
+  /** Where the context menu was asked for, in board coordinates; null when closed. */
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   /** Active touch contacts by pointer id, for two-finger gestures. */
   const touches = useRef(new Map<number, { x: number; y: number }>());
   /** Set once a second finger lands; cleared when every finger has lifted. */
@@ -52,7 +55,8 @@ export function Board({ editor }: { editor: Editor }) {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'SELECT')) return;
-      if (editor.readOnly && !['Tab', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'v', 'h', 'V', 'H', '+', '=', '-', ' '].includes(e.key) && !(e.ctrlKey || e.metaKey)) return;
+      // Read-only is not a list of allowed keys any more: every command
+      // declares whether it writes, and the registry refuses the ones that do.
       if (e.key === 'Tab' && target === canvas) {
         // Cycle through objects; at either end let focus leave the canvas normally.
         if (editor.selectNext(e.shiftKey ? -1 : 1)) e.preventDefault();
@@ -62,7 +66,6 @@ export function Board({ editor }: { editor: Editor }) {
         if (!editor.readOnly && editor.activateSelection()) e.preventDefault();
         return;
       }
-      if (editor.readOnly && (e.ctrlKey || e.metaKey) && !['a', 'A', '0', '=', '+', '-', '1'].includes(e.key)) return;
       if (e.key === ' ') {
         editor.setSpaceHeld(true);
         e.preventDefault();
@@ -139,6 +142,7 @@ export function Board({ editor }: { editor: Editor }) {
         onPointerDown={(e) => {
           const canvas = e.currentTarget as HTMLCanvasElement;
           canvas.setPointerCapture(e.pointerId);
+          setMenuAt(null);
           if (touchDown(e)) return;
           editor.onPointerDown(local(e), e.button, mods(e));
           // Mousedown's default is prevented below, so take focus explicitly for keyboard use.
@@ -162,9 +166,15 @@ export function Board({ editor }: { editor: Editor }) {
         // Keep focus where it is (e.g. in the text editor) and avoid native text selection.
         onMouseDown={(e) => e.preventDefault()}
         onDoubleClick={(e) => editor.onDoubleClick(local(e))}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const p = local(e);
+          editor.selectForContext(p);
+          setMenuAt(p);
+        }}
       />
       <EmptyBoard editor={editor} />
+      {menuAt && <ContextMenu editor={editor} at={menuAt} onClose={() => setMenuAt(null)} />}
       <TextEditorOverlay editor={editor} />
       <PropertyBar editor={editor} />
       <p id="board-help" className="sr-only">
