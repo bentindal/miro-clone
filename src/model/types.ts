@@ -1,3 +1,4 @@
+import type { Mark } from './marks';
 import type { Vec } from './geometry';
 
 export type Id = string;
@@ -69,9 +70,16 @@ export interface PenShape extends Boxed {
   points: Vec[];
 }
 
+export const LIST_STYLES = ['none', 'bullet', 'number'] as const;
+export type ListStyle = (typeof LIST_STYLES)[number];
+
 export interface StickyShape extends Boxed {
   type: 'sticky';
   text: string;
+  /** Inline formatting over `text`. See `src/model/marks.ts`. */
+  marks: Mark[];
+  /** Whether the lines are drawn as a list, and of which kind. */
+  list: ListStyle;
   fill: string;
   /** Horizontal placement of the text block within the note. */
   align: TextAlign;
@@ -79,11 +87,31 @@ export interface StickyShape extends Boxed {
   valign: TextVAlign;
   /** Names of the people who voted for this note, shown as dots. */
   votes: string[];
+  /** Short labels drawn as chips along the top of the note. */
+  tags: string[];
+}
+
+export interface ImageShape extends Boxed {
+  type: 'image';
+  /**
+   * The picture itself, always a `data:image/...` URL. Nothing else is
+   * accepted: a remote URL would leak the board's contents to whoever serves
+   * it, would taint the canvas so PNG export stopped working, and would turn
+   * a board file into a way of making the person who opens it fetch a URL
+   * they never chose. See `validateShape`.
+   */
+  src: string;
+  /** What the picture shows, for the screen reader and while it loads. */
+  alt: string;
 }
 
 export interface TextShape extends Boxed {
   type: 'text';
   text: string;
+  /** Inline formatting over `text`. See `src/model/marks.ts`. */
+  marks: Mark[];
+  /** Whether the lines are drawn as a list, and of which kind. */
+  list: ListStyle;
   fontSize: number;
   color: string;
 }
@@ -126,6 +154,7 @@ export type Shape =
   | PenShape
   | StickyShape
   | TextShape
+  | ImageShape
   | FrameShape
   | GroupShape
   | ConnectorShape;

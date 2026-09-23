@@ -32,6 +32,8 @@ export interface CanvasTheme {
   pinOpen: string;
   pinResolved: string;
   stickyShadow: string;
+  /** Tag chip on a note, over the note's own fill rather than a themed surface. */
+  tagBg: string;
   vote: string;
   /** Cast by pins and peer cursors, so they read as raised like the DOM chrome. */
   shadow: string;
@@ -54,6 +56,7 @@ export const CANVAS_TOKENS: Record<keyof CanvasTheme, string> = {
   pinOpen: '--canvas-pin-open',
   pinResolved: '--canvas-pin-resolved',
   stickyShadow: '--canvas-sticky-shadow',
+  tagBg: '--canvas-tag-bg',
   vote: '--canvas-vote',
   shadow: '--canvas-shadow',
 };
@@ -79,6 +82,7 @@ export const LIGHT_CANVAS_THEME: CanvasTheme = {
   pinOpen: '#f9a825',
   pinResolved: '#9aa0a6',
   stickyShadow: 'rgba(0, 0, 0, 0.12)',
+  tagBg: 'rgba(34, 34, 34, 0.14)',
   vote: '#e53935',
   shadow: 'rgba(0, 0, 0, 0.18)',
 };

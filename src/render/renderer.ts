@@ -11,8 +11,10 @@ import {
 import { FRAME_TITLE_HEIGHT, Scene, connectorLabelBox, polylineMidpoint } from '../model/scene';
 import type { Guide, SpacingGuide } from '../model/snap';
 import { PIN_RADIUS, type Peer, type Pin } from '../editor/Editor';
-import type { ArrowHead, Id, Shape, StickyShape, TextShape } from '../model/types';
-import { type FitResult, STICKY_PAD, fitText, layoutTextBlock } from '../model/textFit';
+import type { ArrowHead, Id, ImageShape, ListStyle, Shape, StickyShape, TextAlign, TextShape } from '../model/types';
+import { imageFailed, imageFor } from './images';
+import { type Mark, runsFor } from '../model/marks';
+import { type FitResult, type LineRange, listIndent, listMarker, widthOfStyled, wrapRanges, STICKY_PAD, TAG_FONT, TAG_GAP, TAG_HEIGHT, TAG_PAD, fitText, fontString, layoutTags, layoutTextBlock, stickyTextBox } from '../model/textFit';
 import { type CanvasTheme, LIGHT_CANVAS_THEME } from './theme';
 import { gridLevels } from './grid';
 
@@ -65,7 +67,7 @@ export interface RenderStats {
   culled: number;
 }
 
-const wrapCache = new WeakMap<Shape, { width: number; font: string; lines: string[] }>();
+const wrapCache = new WeakMap<Shape, { width: number; size: number; ranges: LineRange[] }>();
 const fitCache = new WeakMap<StickyShape, FitResult>();
 
 export function fontFor(s: TextShape): { size: number; font: string } {
@@ -76,34 +78,88 @@ export function fontFor(s: TextShape): { size: number; font: string } {
 export function stickyFit(ctx: CanvasRenderingContext2D, s: StickyShape): FitResult {
   const cached = fitCache.get(s);
   if (cached) return cached;
-  const fit = fitText(s.text, s.w, s.h, STICKY_PAD, (text, font) => {
-    ctx.font = font;
-    return ctx.measureText(text).width;
-  });
+  const box = stickyTextBox(s);
+  const fit = fitText(
+    s.text,
+    box.w,
+    box.h,
+    STICKY_PAD,
+    (text, font) => {
+      ctx.font = font;
+      return ctx.measureText(text).width;
+    },
+    { marks: s.marks, list: s.list },
+  );
   fitCache.set(s, fit);
   return fit;
 }
 
-function wrappedLines(ctx: CanvasRenderingContext2D, s: TextShape, width: number, font: string): string[] {
+/** Wrapped lines of a text shape as character ranges, cached per immutable record. */
+function wrappedRanges(ctx: CanvasRenderingContext2D, s: TextShape, width: number, size: number): LineRange[] {
   const cached = wrapCache.get(s);
-  if (cached && cached.width === width && cached.font === font) return cached.lines;
-  ctx.font = font;
-  const lines: string[] = [];
-  for (const para of s.text.split('\n')) {
-    const words = para.split(' ');
-    let line = '';
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (ctx.measureText(candidate).width <= width || !line) line = candidate;
-      else {
-        lines.push(line);
-        line = word;
-      }
-    }
-    lines.push(line);
+  if (cached && cached.width === width && cached.size === size) return cached.ranges;
+  const ranges = wrapRanges(
+    s.text,
+    width,
+    widthOfStyled(s.text, s.marks, size, (text, font) => {
+      ctx.font = font;
+      return ctx.measureText(text).width;
+    }),
+  );
+  wrapCache.set(s, { width, size, ranges });
+  return ranges;
+}
+
+/**
+ * The link under a world point on a text or sticky shape, or an empty string.
+ *
+ * It re-walks the same layout the drawing uses rather than remembering where
+ * each run landed: the layout is cheap, and a cache of drawn positions would
+ * be one more thing that can disagree with what is on screen.
+ */
+export function linkAtPoint(ctx: CanvasRenderingContext2D, s: StickyShape | TextShape, p: Vec): string {
+  if (!s.text || s.marks.every((m) => m.kind !== 'link')) return '';
+  const measure = (text: string, font: string) => {
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  };
+  let size: number;
+  let ranges: LineRange[];
+  let originX: number;
+  let originY: number;
+  let align: TextAlign;
+  let lineHeight: number;
+  if (s.type === 'sticky') {
+    const fit = stickyFit(ctx, s);
+    const box = stickyTextBox(s);
+    const indent = listIndent(fit.size, s.list);
+    align = s.list === 'none' ? s.align : 'left';
+    const block = layoutTextBlock({ ...box, x: box.x + indent, w: box.w - indent }, STICKY_PAD, fit.ranges.length, fit.lineHeight, align, s.valign);
+    size = fit.size;
+    ranges = fit.ranges;
+    originX = block.x;
+    originY = block.y;
+    lineHeight = fit.lineHeight;
+  } else {
+    size = fontFor(s).size;
+    const indent = listIndent(size, s.list);
+    ranges = wrappedRanges(ctx, s, Math.max(s.w - indent, 1), size);
+    originX = s.x + indent;
+    originY = s.y;
+    align = 'left';
+    lineHeight = size * 1.25;
   }
-  wrapCache.set(s, { width, font, lines });
-  return lines;
+  const i = Math.floor((p.y - originY) / lineHeight);
+  if (i < 0 || i >= ranges.length) return '';
+  const runs = runsFor(s.text, s.marks, ranges[i].from, ranges[i].to);
+  const widths = runs.map((r) => measure(r.text, fontString(size, r.bold, r.italic)));
+  const total = widths.reduce((a, b) => a + b, 0);
+  let cursor = align === 'left' ? originX : align === 'right' ? originX - total : originX - total / 2;
+  for (let r = 0; r < runs.length; r++) {
+    if (p.x >= cursor && p.x < cursor + widths[r]) return runs[r].href;
+    cursor += widths[r];
+  }
+  return '';
 }
 
 /** Compute the selection frame for the current selection, in world + screen units. */
@@ -729,11 +785,15 @@ export function drawShape(ctx: CanvasRenderingContext2D, scene: Scene, s: Shape,
       ctx.fillStyle = s.fill;
       ctx.fillRect(s.x, s.y, s.w, s.h);
       drawStickyText(ctx, s, zoom, theme);
+      drawTags(ctx, s, zoom, theme);
       drawVotes(ctx, s, zoom, theme);
       break;
     }
     case 'text':
-      drawText(ctx, s, zoom);
+      drawText(ctx, s, zoom, theme);
+      break;
+    case 'image':
+      drawImage(ctx, s, theme);
       break;
     case 'frame': {
       ctx.fillStyle = theme.frameFill;
@@ -761,37 +821,145 @@ function matrixOf(ctx: CanvasRenderingContext2D): Matrix {
   return [m.a, m.b, m.c, m.d, m.e, m.f];
 }
 
-function drawText(ctx: CanvasRenderingContext2D, s: TextShape, zoom: number): void {
-  const { size, font } = fontFor(s);
+/**
+ * A picture, or a placeholder while it decodes. The placeholder is drawn
+ * rather than nothing so an image that is slow, or one whose data will not
+ * decode, is still visibly a shape you can select, move and delete.
+ */
+function drawImage(ctx: CanvasRenderingContext2D, s: ImageShape, theme: CanvasTheme): void {
+  const img = imageFor(s.src);
+  if (img) {
+    ctx.drawImage(img, s.x, s.y, s.w, s.h);
+    return;
+  }
+  ctx.fillStyle = theme.frameFill;
+  ctx.fillRect(s.x, s.y, s.w, s.h);
+  ctx.strokeStyle = theme.frameBorder;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(s.x + 0.5, s.y + 0.5, Math.max(s.w - 1, 0), Math.max(s.h - 1, 0));
+  ctx.fillStyle = theme.textMuted;
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(imageFailed(s.src) ? 'Image could not be shown' : (s.alt || 'Loading image…'), s.x + s.w / 2, s.y + s.h / 2, Math.max(s.w - 8, 1));
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+
+/**
+ * One wrapped line, drawn a run at a time so bold, italic and links each get
+ * their own font. Returns nothing: alignment and the line's origin are the
+ * caller's, because a note and a text box place their blocks differently.
+ */
+function drawRuns(ctx: CanvasRenderingContext2D, text: string, marks: readonly Mark[], line: LineRange, x: number, y: number, size: number, color: string, align: TextAlign, theme: CanvasTheme): void {
+  const runs = runsFor(text, marks, line.from, line.to);
+  if (runs.length === 0) return;
+  const widths = runs.map((r) => {
+    ctx.font = fontString(size, r.bold, r.italic);
+    return ctx.measureText(r.text).width;
+  });
+  const total = widths.reduce((a, b) => a + b, 0);
+  // Runs are drawn left to right from a computed origin, because `textAlign`
+  // would centre each run on its own rather than the line as a whole.
+  let cursor = align === 'left' ? x : align === 'right' ? x - total : x - total / 2;
+  ctx.textAlign = 'left';
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    ctx.font = fontString(size, run.bold, run.italic);
+    ctx.fillStyle = run.href ? theme.accent : color;
+    ctx.fillText(run.text, cursor, y);
+    if (run.href) {
+      // Underlined as well as coloured, so a link is not only a colour.
+      const underline = y + size * 1.05;
+      ctx.strokeStyle = theme.accent;
+      ctx.lineWidth = Math.max(1, size / 14);
+      ctx.beginPath();
+      ctx.moveTo(cursor, underline);
+      ctx.lineTo(cursor + widths[i], underline);
+      ctx.stroke();
+    }
+    cursor += widths[i];
+  }
+}
+
+/** The bullet or number before a line, drawn in the indent the fit reserved. */
+function drawListMarker(ctx: CanvasRenderingContext2D, list: ListStyle, i: number, x: number, y: number, size: number, color: string): void {
+  const marker = listMarker(list, i);
+  if (!marker) return;
+  ctx.font = fontString(size);
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.fillText(marker, x, y);
+}
+
+function drawText(ctx: CanvasRenderingContext2D, s: TextShape, zoom: number, theme: CanvasTheme): void {
+  const { size } = fontFor(s);
   if (size * zoom < 5) return; // too small to read; skip for speed
   if (!s.text) return;
-  const width = Math.max(s.w, 1);
-  const lines = wrappedLines(ctx, s, width, font);
-  ctx.font = font;
-  ctx.fillStyle = s.color;
+  const indent = listIndent(size, s.list);
+  const width = Math.max(s.w - indent, 1);
+  const ranges = wrappedRanges(ctx, s, width, size);
   ctx.textBaseline = 'top';
   const lineHeight = size * 1.25;
   const maxLines = Math.max(1, Math.floor((s.h + lineHeight * 0.25) / lineHeight));
-  const n = Math.min(lines.length, maxLines);
+  const n = Math.min(ranges.length, maxLines);
   for (let i = 0; i < n; i++) {
-    ctx.fillText(lines[i], s.x, s.y + i * lineHeight, width);
+    const y = s.y + i * lineHeight;
+    drawListMarker(ctx, s.list, i, s.x, y, size, s.color);
+    drawRuns(ctx, s.text, s.marks, ranges[i], s.x + indent, y, size, s.color, 'left', theme);
   }
+  ctx.textAlign = 'start';
 }
 
 function drawStickyText(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {
   if (!s.text) return;
   const fit = stickyFit(ctx, s);
   if (fit.size * zoom < 4) return;
-  ctx.font = fit.font;
-  ctx.fillStyle = theme.shapeText;
   ctx.textBaseline = 'top';
-  const width = Math.max(s.w - STICKY_PAD * 2, 1);
-  const maxLines = Math.max(1, Math.floor((s.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
-  const n = Math.min(fit.lines.length, maxLines);
-  const block = layoutTextBlock(s, STICKY_PAD, n, fit.lineHeight, s.align, s.valign);
-  ctx.textAlign = block.textAlign;
-  for (let i = 0; i < n; i++) ctx.fillText(fit.lines[i], block.x, block.y + i * fit.lineHeight, width);
+  const box = stickyTextBox(s);
+  const indent = listIndent(fit.size, s.list);
+  const maxLines = Math.max(1, Math.floor((box.h - STICKY_PAD * 2 + fit.lineHeight * 0.25) / fit.lineHeight));
+  const n = Math.min(fit.ranges.length, maxLines);
+  // A centred bullet list is not a thing anybody wants, so a list is drawn
+  // from the left whatever the note's horizontal alignment says.
+  const align = s.list === 'none' ? s.align : 'left';
+  const block = layoutTextBlock({ ...box, x: box.x + indent, w: box.w - indent }, STICKY_PAD, n, fit.lineHeight, align, s.valign);
+  for (let i = 0; i < n; i++) {
+    const y = block.y + i * fit.lineHeight;
+    drawListMarker(ctx, s.list, i, box.x + STICKY_PAD, y, fit.size, theme.shapeText);
+    drawRuns(ctx, s.text, s.marks, fit.ranges[i], block.x, y, fit.size, theme.shapeText, align, theme);
+  }
   ctx.textAlign = 'start';
+}
+
+/**
+ * Tag chips along the top of a note. They are drawn over the note's own fill
+ * rather than a themed surface, so the chip colour is the same in both
+ * themes, as the note's text is.
+ */
+function drawTags(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {
+  if (s.tags.length === 0 || TAG_FONT * zoom < 4) return;
+  const font = fontString(TAG_FONT);
+  ctx.font = font;
+  const { widths, shown } = layoutTags(s.tags, s.w, (text) => ctx.measureText(text).width);
+  let x = s.x + STICKY_PAD;
+  const y = s.y + STICKY_PAD;
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < shown; i++) {
+    ctx.fillStyle = theme.tagBg;
+    ctx.beginPath();
+    ctx.roundRect(x, y, widths[i], TAG_HEIGHT, TAG_HEIGHT / 2);
+    ctx.fill();
+    ctx.fillStyle = theme.shapeText;
+    ctx.fillText(s.tags[i], x + TAG_PAD, y + TAG_HEIGHT / 2 + 0.5, widths[i] - TAG_PAD * 2);
+    x += widths[i] + TAG_GAP;
+  }
+  // Anything that did not fit is counted rather than dropped silently.
+  if (shown < s.tags.length) {
+    ctx.fillStyle = theme.shapeText;
+    ctx.fillText(`+${s.tags.length - shown}`, x, y + TAG_HEIGHT / 2 + 0.5);
+  }
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, theme: CanvasTheme): void {

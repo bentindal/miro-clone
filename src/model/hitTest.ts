@@ -25,7 +25,8 @@ export function hitShape(scene: Scene, s: Shape, p: Vec, tolerance: number): boo
     }
     case 'rect':
     case 'sticky':
-    case 'text': {
+    case 'text':
+    case 'image': {
       const local = rotatePoint(p, boxCenter(s), -s.rotation);
       return pointInBox(local, grow(s, tolerance));
     }

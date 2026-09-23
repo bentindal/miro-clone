@@ -1,4 +1,4 @@
-import type { ConnectorShape, EllipseShape, RectShape, StickyShape, PenShape, LineShape, FrameShape, GroupShape } from '../types';
+import type { ConnectorShape, EllipseShape, ImageShape, RectShape, StickyShape, TextShape, PenShape, LineShape, FrameShape, GroupShape } from '../types';
 
 export function rect(id: string, x: number, y: number, w: number, h: number, extra: Partial<RectShape> = {}): RectShape {
   return { type: 'rect', id, parentId: null, x, y, w, h, rotation: 0, fill: '#fff', stroke: '#000', strokeWidth: 2, ...extra };
@@ -9,7 +9,18 @@ export function ellipse(id: string, x: number, y: number, w: number, h: number, 
 }
 
 export function sticky(id: string, x: number, y: number, text = '', extra: Partial<StickyShape> = {}): StickyShape {
-  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0', align: 'center', valign: 'middle', votes: [], ...extra };
+  return { type: 'sticky', id, parentId: null, x, y, w: 100, h: 100, rotation: 0, text, fill: '#ff0', align: 'center', valign: 'middle', votes: [], tags: [], marks: [], list: 'none', ...extra };
+}
+
+export function text(id: string, x = 0, y = 0, extra: Partial<TextShape> = {}): TextShape {
+  return { type: 'text', id, parentId: null, x, y, w: 100, h: 20, rotation: 0, text: 'hi', marks: [], list: 'none', fontSize: 14, color: '#222222', ...extra };
+}
+
+/** A one-pixel transparent GIF: the smallest thing that is really an image. */
+export const PIXEL_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+export function image(id: string, x: number, y: number, extra: Partial<ImageShape> = {}): ImageShape {
+  return { type: 'image', id, parentId: null, x, y, w: 80, h: 60, rotation: 0, src: PIXEL_GIF, alt: 'a picture', ...extra };
 }
 
 export function pen(id: string, x: number, y: number, points: { x: number; y: number }[]): PenShape {

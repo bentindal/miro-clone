@@ -2,16 +2,20 @@ import {
   ANCHORS,
   ARROW_HEADS,
   CONNECTOR_STYLES,
+  LIST_STYLES,
   TEXT_ALIGNS,
   TEXT_VALIGNS,
   type Anchor,
   type ArrowHead,
   type ConnectorStyle,
   type ConnectorShape,
+  type ImageShape,
+  type ListStyle,
   type Shape,
   type ShapeType,
   type StickyShape,
   type TextAlign,
+  type TextShape,
   type TextVAlign,
 } from '../model/types';
 import type { IconName } from '../ui';
@@ -38,6 +42,11 @@ interface FieldCommon {
   optionIcon?: (value: never) => IconName;
   /** Shape types that have this property. Anything else ignores the field. */
   types: readonly ShapeType[];
+  /**
+   * Editing this across several shapes at once means nothing, so the bar
+   * shows it only when exactly one of the shapes it applies to is selected.
+   */
+  singleOnly?: boolean;
 }
 
 /**
@@ -76,10 +85,23 @@ export interface NumberField extends FieldCommon {
 export interface TextField extends FieldCommon {
   kind: 'text';
   placeholder: string;
-  /** Editing text across several shapes at once means nothing, so ask for one. */
-  singleOnly: boolean;
   read(s: Shape): string;
   write(v: string, s: Shape): Partial<Shape>;
+}
+
+/**
+ * A list of short labels, added and removed one at a time. It is its own kind
+ * rather than a comma-separated `text` field because the value is a list: the
+ * control has to be able to remove one without reparsing the rest, and a
+ * comma in a label would silently split it in two.
+ */
+export interface TagsField extends FieldCommon {
+  kind: 'tags';
+  placeholder: string;
+  /** Longest label accepted, so a chip stays a chip. */
+  maxLength: number;
+  read(s: Shape): readonly string[];
+  write(v: readonly string[], s: Shape): Partial<Shape>;
 }
 
 /** A button rather than a value: it does something to the shapes it applies to. */
@@ -91,7 +113,7 @@ export interface ActionField extends FieldCommon {
   run(editor: Editor): void;
 }
 
-export type Field = ColorField | EnumField | NumberField | TextField | ActionField;
+export type Field = ColorField | EnumField | NumberField | TextField | TagsField | ActionField;
 
 const FILLABLE = ['rect', 'ellipse', 'sticky'] as const;
 const STROKABLE = ['rect', 'ellipse', 'line', 'pen', 'connector'] as const;
@@ -211,6 +233,46 @@ export const FIELDS = {
     read: (s) => (s as StickyShape).valign,
     write: (v) => ({ valign: v }) as Partial<Shape>,
   } satisfies EnumField<TextVAlign>,
+
+  list: {
+    kind: 'enum',
+    id: 'list',
+    group: 'Text',
+    label: 'List',
+    types: ['sticky', 'text'],
+    options: LIST_STYLES,
+    as: 'buttons',
+    optionLabel: (l: ListStyle) => (l === 'none' ? 'No list' : l === 'bullet' ? 'Bulleted list' : 'Numbered list'),
+    optionIcon: (l: ListStyle) => (l === 'none' ? 'text' : l === 'bullet' ? 'listBullet' : 'listNumber'),
+    read: (s) => (s as StickyShape | TextShape).list,
+    write: (v) => ({ list: v }) as Partial<Shape>,
+  } satisfies EnumField<ListStyle>,
+
+  tags: {
+    kind: 'tags',
+    id: 'tags',
+    group: 'Tags',
+    types: ['sticky'],
+    placeholder: 'Add a tag',
+    a11y: 'Add a tag',
+    maxLength: 24,
+    singleOnly: true,
+    read: (s) => (s as StickyShape).tags,
+    write: (v) => ({ tags: [...v] }) as Partial<Shape>,
+  } satisfies TagsField,
+
+  alt: {
+    kind: 'text',
+    id: 'alt',
+    group: 'Image',
+    label: 'Alt',
+    types: ['image'],
+    placeholder: 'What it shows',
+    a11y: 'Image description',
+    singleOnly: true,
+    read: (s) => (s as ImageShape).alt,
+    write: (v) => ({ alt: v }) as Partial<Shape>,
+  } satisfies TextField,
 
   connectorStyle: {
     kind: 'enum',
@@ -354,6 +416,9 @@ export interface FieldValue {
 export function valueOf(field: Field, shapes: readonly Shape[]): FieldValue {
   if (field.kind === 'action') return { value: undefined, mixed: false };
   const read = field.read as (s: Shape) => unknown;
-  const values = new Set(shapes.map(read));
-  return values.size === 1 ? { value: [...values][0], mixed: false } : { value: undefined, mixed: values.size > 1 };
+  const values = shapes.map(read);
+  // A list field reads as a list, and two equal lists are two objects, so
+  // agreement is compared by content rather than by identity.
+  const keys = new Set(values.map((v) => (Array.isArray(v) ? JSON.stringify(v) : v)));
+  return keys.size === 1 ? { value: values[0], mixed: false } : { value: undefined, mixed: keys.size > 1 };
 }

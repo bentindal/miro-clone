@@ -145,7 +145,17 @@ export const COMMANDS: Command[] = [
   { id: 'zoom-in', label: 'Zoom in', icon: 'zoomIn', group: 'view', shortcut: ['=', '+', 'Ctrl+=', 'Ctrl++'], run: (e) => e.zoomBy(1.25) },
   { id: 'zoom-out', label: 'Zoom out', icon: 'zoomOut', group: 'view', shortcut: ['-', 'Ctrl+-'], run: (e) => e.zoomBy(0.8) },
   { id: 'zoom-fit', label: 'Zoom to fit', icon: 'fit', group: 'view', shortcut: ['!', 'Ctrl+1'], run: (e) => e.zoomToFit() },
+  {
+    id: 'zoom-selection',
+    label: 'Zoom to selection',
+    icon: 'fit',
+    group: 'view',
+    shortcut: ['@'],
+    run: (e) => e.zoomToSelection(),
+    isEnabled: hasSelection,
+  },
   { id: 'zoom-reset', label: 'Zoom to 100%', icon: 'reset', group: 'view', shortcut: ['Ctrl+0'], run: (e) => e.resetCamera() },
+  { id: 'toggle-minimap', label: 'Minimap', icon: 'minimap', group: 'view', run: (e) => e.setMinimapOpen(!e.minimapOpen), isActive: (e) => e.minimapOpen },
   { id: 'toggle-grid', label: 'Snap to grid', icon: 'grid', group: 'view', shortcut: ['G'], run: (e) => e.setGridSnap(!e.gridSnap), isActive: (e) => e.gridSnap },
 
   { id: 'palette', label: 'Command palette', icon: 'command', group: 'board', shortcut: ['Ctrl+K'], run: (e) => e.setPaletteOpen(!e.paletteOpen) },

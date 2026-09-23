@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Board } from './editor/Board';
 import { CommandPalette } from './editor/CommandPalette';
 import { Editor } from './editor/Editor';
+import { Minimap } from './editor/Minimap';
 import { Dock } from './editor/Dock';
 import { ToolRail } from './editor/ToolRail';
 import { TopBar } from './editor/TopBar';
@@ -132,6 +133,7 @@ export default function App() {
           <Board editor={editor} />
           <ToolRail editor={editor} />
           <ZoomCluster editor={editor} />
+          <Minimap editor={editor} />
           <Dock editor={editor} />
         </div>
       )}

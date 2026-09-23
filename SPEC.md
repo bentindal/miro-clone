@@ -244,10 +244,68 @@ needs a passing end-to-end test.
       `is centred to start with, and follows the buttons in both directions`,
       `survives a round trip through the board file`,
       `a note written before alignment existed opens centred`.
-- [ ] Sticky notes that auto-fit their text; tags; voting dots.
-- [ ] Rich text: bold, lists, links.
-- [ ] Minimap and zoom to selection.
-- [ ] Image upload and paste from the clipboard.
+- [x] Sticky notes that auto-fit their text; tags; voting dots. A note shrinks
+      its font to fit and grows taller once it cannot shrink further; anyone
+      can add a vote, shown as dots with a count; tags are short labels drawn
+      as chips along the top of the note, edited from the property bar. The
+      tag row takes its space off the text rather than sitting over it, so the
+      auto-fit answers a tagged note with a smaller size or a taller note.
+      Proof: [`e2e/sticky-fit.spec.ts`](e2e/sticky-fit.spec.ts) › `sticky notes auto-fit and votes` ›
+      `the font shrinks as text grows, grows back when the note is resized, and the note grows when it cannot shrink further`,
+      `votes toggle per person, show a count, and sync`;
+      [`e2e/sticky-tags.spec.ts`](e2e/sticky-tags.spec.ts) › `sticky note tags` ›
+      `tags are added and removed from the property bar and drawn on the note`,
+      `the tag row takes its space off the text rather than overlapping it`,
+      `tags survive a round trip through the board file, and older notes open with none`,
+      `a tag added by one person appears for the other`.
+- [x] Rich text: bold, lists, links. Highlight text while editing a note or a
+      text box and a format bar offers bold, italic and a link; the property
+      bar sets the whole block as a bulleted or numbered list. Formatting is
+      ranges over the plain string rather than a document tree, so `text` stays
+      a string and wrapping, fitting, hit testing, search, the accessible
+      description and the board file all keep working — and the ranges follow
+      the words as the text around them is edited. Bold is measured when
+      wrapping, because it is wider. A link opens in a new tab on a second
+      click, and only `http`, `https` and `mailto` survive a board file.
+      Proof: [`e2e/rich-text.spec.ts`](e2e/rich-text.spec.ts) › `rich text` ›
+      `the format bar bolds what is highlighted, and un-bolds it again`,
+      `bold is drawn, not just recorded`,
+      `formatting follows the words when the text around it changes`,
+      `a link is added from the bar, opens in a new tab, and can be taken off`,
+      `a list is set from the property bar and changes how the note is drawn`,
+      `formatting survives a round trip, and a board file cannot smuggle in a script link`,
+      `older notes and text open unformatted rather than failing to open`.
+- [x] Minimap and zoom to selection. A minimap bottom right shows the whole
+      board with the viewport drawn on it; clicking or dragging moves the
+      camera and never the shapes. It covers the content *and* whatever the
+      viewport can see, so the viewport rectangle cannot wander off it when
+      someone pans past the last shape, and it keeps clear of the dock. Zoom
+      to selection is a command like any other, on Shift+2.
+      Proof: [`e2e/minimap.spec.ts`](e2e/minimap.spec.ts) › `the minimap` ›
+      `shows by default, hides from the zoom cluster, and comes back`,
+      `clicking it moves the camera to that part of the board`,
+      `never changes the board`,
+      `keeps clear of the dock when a panel is open`;
+      › `zoom to selection` ›
+      `fills the viewport with the selection and nothing else`,
+      `is offered in the palette, and greyed with nothing selected`.
+- [x] Image upload and paste from the clipboard. Drop a file on the board or
+      paste one: it arrives as an image shape that moves, resizes, groups and
+      syncs like anything else, with a description the property bar edits and
+      the screen reader reads. The picture travels inside the board as a data
+      URL, capped at 2 MB, so a board is self-contained: it works with no sync
+      server, a saved file opens anywhere, PNG export keeps working because
+      the canvas is never tainted, and **opening someone's board file never
+      fetches anything** — a `src` that is not an image data URL is refused
+      when the file is read.
+      Proof: [`e2e/images.spec.ts`](e2e/images.spec.ts) › `images` ›
+      `a pasted image lands in the middle of the view and is drawn`,
+      `a dropped image lands where it was dropped`,
+      `a file that is not an image, or one that is too big, is refused and says why`,
+      `an image survives a round trip, and a board file that points outside itself is refused`,
+      `the property bar edits the description, which is what a screen reader reads`,
+      `pasting with nothing on the system clipboard still pastes copied shapes`,
+      `a view-only board refuses a dropped image`.
 
 ## Unit coverage
 
@@ -260,6 +318,9 @@ The model underneath is covered by Vitest (`pnpm test`):
 - Serialisation round trip: `src/model/__tests__/serialize.test.ts`
 - Connector anchors and routing: `src/model/__tests__/connectors.test.ts`
 - Snapping, align and distribute maths: `src/model/__tests__/snap.test.ts`
+- Minimap projection, both ways: `src/render/__tests__/minimap.test.ts`
+- What counts as a picture, and how big it arrives: `src/model/__tests__/images.test.ts`
+- Inline formatting ranges, and keeping them on the right characters: `src/model/__tests__/marks.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
 - Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`

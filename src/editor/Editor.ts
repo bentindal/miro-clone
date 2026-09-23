@@ -28,6 +28,7 @@ import {
   type ConnectorShape,
   type ConnectorStyle,
   type FrameShape,
+  type ImageShape,
   type Id,
   type Shape,
   type StickyShape,
@@ -43,6 +44,7 @@ import {
   type RenderStats,
   type SelectionFrame,
   boardBounds,
+  linkAtPoint,
   renderBoard,
   renderToCanvas,
   selectionFrame,
@@ -50,7 +52,9 @@ import {
 import { type AlignKind, type Guide, type SpacingGuide, alignDeltas, computeSnap, distributeDeltas, snapEdges } from '../model/snap';
 import { collectForCopy, pasteShapes } from './clipboard';
 import { DocBinding } from '../sync/binding';
-import { STICKY_PAD, fitText, requiredHeight } from '../model/textFit';
+import { STICKY_PAD, fitText, requiredHeight, stickyTextBox, tagInset } from '../model/textFit';
+import { type MarkKind, diffText, hasMarkOver, linkAt, remapMarks, toggleMark } from '../model/marks';
+import { fitWithin, isImageDataUrl, rejectImage } from '../model/images';
 import { CommentStore } from '../sync/comments';
 import type { Tool } from './tools';
 import { runShortcut } from './shortcuts';
@@ -141,6 +145,9 @@ export class Editor {
 
   /** The command palette lives here rather than in a component, so a command can open it. */
   paletteOpen = false;
+
+  /** Whether the minimap is showing. Here for the same reason the palette is. */
+  minimapOpen = true;
   showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
@@ -186,12 +193,18 @@ export class Editor {
   /** Canvas colours resolved from the CSS tokens; see src/render/theme.ts. */
   theme: CanvasTheme = LIGHT_CANVAS_THEME;
   private measureCtx: CanvasRenderingContext2D | null = null;
+  /** The context layout measurement uses: the board's, or a scratch one. */
+  private ctxForMeasure(): CanvasRenderingContext2D | null {
+    if (!this.measureCtx) this.measureCtx = (this.canvas ?? (typeof document !== 'undefined' ? document.createElement('canvas') : null))?.getContext('2d') ?? null;
+    return this.measureCtx;
+  }
+
   /** Text measurement for layout decisions; uses the board canvas, falls back to a rough estimate. */
   private readonly measure = (text: string, font: string): number => {
-    if (!this.measureCtx) this.measureCtx = (this.canvas ?? (typeof document !== 'undefined' ? document.createElement('canvas') : null))?.getContext('2d') ?? null;
-    if (!this.measureCtx) return text.length * parseFloat(font) * 0.6;
-    this.measureCtx.font = font;
-    return this.measureCtx.measureText(text).width;
+    const ctx = this.ctxForMeasure();
+    if (!ctx) return text.length * parseFloat(font) * 0.6;
+    ctx.font = font;
+    return ctx.measureText(text).width;
   };
   private renderHandle: number | null = null;
   private stickyColorIndex = 0;
@@ -262,6 +275,12 @@ export class Editor {
   setPaletteOpen(open: boolean): void {
     if (this.paletteOpen === open) return;
     this.paletteOpen = open;
+    this.notify();
+  }
+
+  setMinimapOpen(open: boolean): void {
+    if (this.minimapOpen === open) return;
+    this.minimapOpen = open;
     this.notify();
   }
 
@@ -569,6 +588,21 @@ export class Editor {
     this.setCamera(fitCamera(boardBounds(this.scene), this.viewport.w, this.viewport.h));
   }
 
+  /** Fill the viewport with the selection, which is `zoomToFit` over fewer shapes. */
+  zoomToSelection(): void {
+    if (this.selection.length === 0) return;
+    this.setCamera(fitCamera(this.scene.boundsOfMany(this.selection), this.viewport.w, this.viewport.h));
+  }
+
+  /** Put a world point in the middle of the viewport, keeping the zoom. */
+  centerOn(world: Vec): void {
+    this.setCamera({
+      zoom: this.camera.zoom,
+      tx: this.viewport.w / 2 - world.x * this.camera.zoom,
+      ty: this.viewport.h / 2 - world.y * this.camera.zoom,
+    });
+  }
+
   /** Wheel input: plain scroll pans, ctrl (trackpad pinch) zooms around the cursor. */
   onWheel(dx: number, dy: number, ctrl: boolean, at: Vec): void {
     if (ctrl) {
@@ -725,6 +759,8 @@ export class Editor {
     }
     if (this.tool !== 'select') return toolCursor(this.tool, this.theme) ?? 'crosshair';
     if (this.pinAt(screen)) return 'pointer';
+    // A link that does not look clickable is not a link.
+    if (this.linkAt(this.toWorld(screen))) return 'pointer';
     return this.hoverId ? 'move' : 'default';
   }
 
@@ -750,6 +786,11 @@ export class Editor {
       const pin = this.pinAt(screen);
       if (pin) {
         this.openThread(pin.id);
+        return;
+      }
+      const href = this.linkAt(world);
+      if (href) {
+        this.openLink(href);
         return;
       }
     }
@@ -781,6 +822,29 @@ export class Editor {
         break;
     }
     this.notify();
+  }
+
+  /**
+   * The link under a world point, but only on a shape that is already
+   * selected. A first click selects the shape and a second follows the link,
+   * so text with a link in it can still be picked up and moved.
+   */
+  linkAt(world: Vec): string {
+    const ctx = this.ctxForMeasure();
+    if (!ctx) return '';
+    for (const id of this.selection) {
+      const s = this.scene.get(id);
+      if (!s || !hasText(s)) continue;
+      const href = linkAtPoint(ctx, s, world);
+      if (href) return href;
+    }
+    return '';
+  }
+
+  /** Follow a link, in a new tab that cannot reach back into this one. */
+  openLink(href: string): void {
+    if (typeof window === 'undefined') return;
+    window.open(href, '_blank', 'noopener,noreferrer');
   }
 
   private selectPointerDown(screen: Vec, world: Vec, mods: Modifiers): void {
@@ -1094,12 +1158,55 @@ export class Editor {
         align: 'center',
         valign: 'middle',
         votes: [],
+        tags: [],
+        marks: [],
+        list: 'none',
       };
       this.scene.add(s);
       this.assignFrames([s.id]);
       this.selection = [s.id];
     });
     this.tool = 'select';
+  }
+
+  /**
+   * Put a picture on the board, centred on `world`. Returns the reason it
+   * could not be, so the caller can say so where the person is looking; the
+   * editor has no opinion about how a failure is shown.
+   */
+  async insertImage(file: File, world: Vec): Promise<string | null> {
+    const refused = rejectImage(file);
+    if (refused) return refused;
+    let src: string;
+    try {
+      src = await readAsDataURL(file);
+    } catch {
+      return `${file.name || 'That file'} could not be read`;
+    }
+    if (!isImageDataUrl(src)) return `${file.name || 'That file'} is not an image this board can show`;
+    const natural = await measureImage(src);
+    if (!natural) return `${file.name || 'That file'} could not be decoded`;
+    const size = fitWithin(natural.w, natural.h);
+    const shape: ImageShape = {
+      type: 'image',
+      id: newId('img'),
+      parentId: null,
+      x: world.x - size.w / 2,
+      y: world.y - size.h / 2,
+      w: size.w,
+      h: size.h,
+      rotation: 0,
+      src,
+      // The file name is a poor description, but it is the only one anybody
+      // supplied, and it beats an empty label in the screen reader.
+      alt: file.name ? file.name.replace(/\.[^.]+$/, '') : '',
+    };
+    this.transact(() => {
+      this.scene.add(shape);
+      this.assignFrames([shape.id]);
+      this.selection = [shape.id];
+    });
+    return null;
   }
 
   private placeText(world: Vec): void {
@@ -1115,6 +1222,8 @@ export class Editor {
       h: 30,
       rotation: 0,
       text: '',
+      marks: [],
+      list: 'none',
       fontSize: 18,
       color: SHAPE_STROKE,
     };
@@ -1153,13 +1262,46 @@ export class Editor {
     if (!s) return;
     if (s.type === 'frame') this.scene.update<FrameShape>(s.id, { title: text });
     else if (s.type === 'connector') this.scene.update<ConnectorShape>(s.id, { label: text.replace(/\n/g, ' ') });
-    else if (s.type === 'sticky') {
-      // The note shrinks its font to fit; once it cannot shrink further it grows taller instead.
-      const fit = fitText(text, s.w, s.h, STICKY_PAD, this.measure);
-      const h = fit.overflow ? Math.max(s.h, requiredHeight(text, s.w, STICKY_PAD, this.measure)) : s.h;
-      this.scene.update<StickyShape>(s.id, { text, h });
-    } else if (hasText(s)) this.scene.update<StickyShape | TextShape>(s.id, { text });
+    else if (hasText(s)) {
+      // Formatting is ranges over this string, so it has to move with the
+      // edit or the bold would end up on the wrong words.
+      const marks = remapMarks(s.marks, diffText(s.text, text), text.length);
+      if (s.type === 'sticky') {
+        // The note shrinks its font to fit; once it cannot shrink further it grows taller instead.
+        // Tags take a row off the top, so both the fit and the grown height are
+        // worked out against the box the text actually gets.
+        const box = stickyTextBox(s);
+        const styled = { marks, list: s.list };
+        const fit = fitText(text, box.w, box.h, STICKY_PAD, this.measure, styled);
+        const h = fit.overflow ? Math.max(s.h, requiredHeight(text, box.w, STICKY_PAD, this.measure, styled) + tagInset(s.tags)) : s.h;
+        this.scene.update<StickyShape>(s.id, { text, marks, h });
+      } else this.scene.update<TextShape>(s.id, { text, marks });
+    }
     this.notify();
+  }
+
+  /**
+   * Turn a kind of formatting on or off over a range of the text being
+   * edited. The range comes from the textarea's own selection, which is the
+   * only place that knows what the person has highlighted.
+   */
+  applyMark(kind: MarkKind, from: number, to: number, href = ''): void {
+    const s = this.editing ? this.scene.get(this.editing.id) : undefined;
+    if (!s || !hasText(s) || this.readOnly) return;
+    this.transact(() => this.scene.update<StickyShape | TextShape>(s.id, { marks: toggleMark(s.marks, kind, from, to, href) }));
+  }
+
+  /** Whether every character in the range already carries `kind`. */
+  markedOver(kind: MarkKind, from: number, to: number): boolean {
+    const s = this.editing ? this.scene.get(this.editing.id) : undefined;
+    return s !== undefined && hasText(s) && hasMarkOver(s.marks, kind, from, to);
+  }
+
+  /** The link on the range being edited, if the whole of it is one link. */
+  linkOver(from: number, to: number): string {
+    const s = this.editing ? this.scene.get(this.editing.id) : undefined;
+    if (!s || !hasText(s) || !hasMarkOver(s.marks, 'link', from, to)) return '';
+    return linkAt(s.marks, from);
   }
 
   finishEditing(): void {
@@ -1540,6 +1682,7 @@ const TYPE_LABELS: Record<Shape['type'], string> = {
   pen: 'pen stroke',
   sticky: 'sticky note',
   text: 'text',
+  image: 'image',
   frame: 'frame',
   group: 'group',
   connector: 'connector',
@@ -1547,6 +1690,7 @@ const TYPE_LABELS: Record<Shape['type'], string> = {
 
 function describeShape(s: Shape): string {
   const label = TYPE_LABELS[s.type];
+  if (s.type === 'image') return s.alt.trim() ? `image "${s.alt.trim()}"` : 'image';
   if (s.type === 'sticky' || s.type === 'text') {
     const text = s.text.trim().replace(/\s+/g, ' ');
     return text ? `${label} "${text.length > 40 ? `${text.slice(0, 40)}…` : text}"` : `empty ${label}`;
@@ -1557,4 +1701,23 @@ function describeShape(s: Shape): string {
 
 function midpoint(a: Vec, b: Vec): Vec {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function readAsDataURL(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** The picture's own size, or null when the data will not decode. */
+function measureImage(src: string): Promise<{ w: number; h: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }

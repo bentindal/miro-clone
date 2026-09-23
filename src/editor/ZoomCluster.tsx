@@ -9,7 +9,7 @@ import { useEditorVersion } from './useEditor';
  * cluster is a layout, not a set of actions: what each button does, whether it
  * is available and which key runs it all come from the command registry.
  */
-const CLUSTER: (string | 'divider' | 'zoom')[] = ['undo', 'redo', 'divider', 'zoom-out', 'zoom', 'zoom-in', 'zoom-fit', 'divider', 'toggle-grid'];
+const CLUSTER: (string | 'divider' | 'zoom')[] = ['undo', 'redo', 'divider', 'zoom-out', 'zoom', 'zoom-in', 'zoom-fit', 'divider', 'toggle-grid', 'toggle-minimap'];
 
 export function ZoomCluster({ editor }: { editor: Editor }) {
   useEditorVersion(editor);
