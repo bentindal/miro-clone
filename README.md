@@ -152,3 +152,5 @@ e2e           Playwright specs, one file per SPEC.md item
 | Delete, Backspace | Delete selection |
 | Esc | Cancel drag, clear selection, back to select tool |
 | + - Ctrl+0 Shift+1 | Zoom in, out, reset, fit |
+| Ctrl+Shift+P | Present the frames as slides |
+| Arrows, Space, PageUp/Down, Home/End (presenting) | Previous and next slide, first and last |

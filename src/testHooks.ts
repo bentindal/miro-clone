@@ -39,6 +39,8 @@ export function installTestHooks(editor: Editor, session: SyncSession | null = n
     guides: () => editor.guides.map((g) => ({ ...g })),
     spacingGuides: () => editor.spacingGuides.map((g) => ({ ...g, gaps: g.gaps.map((x) => [...x]) })),
     tool: () => editor.tool,
+    slides: () => editor.slides().map((f) => ({ id: f.id, title: f.title, slide: f.slide })),
+    presenting: () => editor.presenting,
     theme: () => ({ ...editor.theme }),
   };
   (window as unknown as { __wb: typeof api }).__wb = api;

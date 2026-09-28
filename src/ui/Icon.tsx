@@ -249,6 +249,20 @@ const GLYPHS = {
       <path d="M4.6 14a8 8 0 1 0 .8-5.4" />
     </>
   ),
+  present: (
+    <>
+      <rect x="3" y="4.5" width="18" height="12" rx="1.5" />
+      <path d="M10 8.5l4.5 2.5-4.5 2.5zM12 16.5v3M9 19.5h6" />
+    </>
+  ),
+  pdf: (
+    <>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12.5h6M9 16h4" />
+    </>
+  ),
+  moveUp: <path d="M12 19V6m0 0-4.5 4.5M12 6l4.5 4.5" />,
+  moveDown: <path d="M12 5v13m0 0 4.5-4.5M12 18l-4.5-4.5" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof GLYPHS;

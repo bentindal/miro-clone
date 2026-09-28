@@ -230,7 +230,7 @@ export function validateShape(raw: unknown): Shape {
       return { type, ...boxed(raw), src, alt: optStr(raw.alt, '') };
     }
     case 'frame':
-      return { type, ...boxed(raw), title: optStr(raw.title, 'Frame') };
+      return { type, ...boxed(raw), title: optStr(raw.title, 'Frame'), slide: optStr(raw.slide, '') };
     case 'group':
       return { type, id: str(raw.id, 'id'), parentId: parentId(raw.parentId) };
     case 'connector':

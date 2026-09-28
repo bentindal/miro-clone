@@ -60,6 +60,7 @@ import type { Tool } from './tools';
 import { runShortcut } from './shortcuts';
 import { toolCursor } from './cursors';
 import { type StylePatch, patchFor } from './fields';
+import { nextSlideKey, reorderSlides, slideOf, slides } from '../model/slides';
 
 export type { StylePatch } from './fields';
 import { type CanvasTheme, LIGHT_CANVAS_THEME, resolveCanvasTheme } from '../render/theme';
@@ -148,6 +149,8 @@ export class Editor {
 
   /** Whether the minimap is showing. Here for the same reason the palette is. */
   minimapOpen = true;
+  /** Index of the slide being presented, or null when nobody is presenting. */
+  presenting: number | null = null;
   showResolved = false;
   /** Viewers can look and point but not change anything. The server enforces this too. */
   readOnly = false;
@@ -440,6 +443,8 @@ export class Editor {
   setViewport(w: number, h: number): void {
     if (this.viewport.w === w && this.viewport.h === h) return;
     this.viewport = { w, h };
+    // A slide is sized to the window, so a resized window resizes the slide.
+    if (this.presenting !== null) this.fitSlide();
     this.notify();
   }
 
@@ -498,6 +503,7 @@ export class Editor {
       pins: this.pins(),
       pendingPin: this.pendingComment ? this.pinForPending() : null,
       editingId: this.editing?.id ?? null,
+      presenting: this.presentingBox(),
     };
   }
 
@@ -588,6 +594,73 @@ export class Editor {
     this.setCamera(fitCamera(boardBounds(this.scene), this.viewport.w, this.viewport.h));
   }
 
+  // ---- slides ------------------------------------------------------------
+
+  /** The frames of this board, in presentation order. */
+  slides(): FrameShape[] {
+    return slides(this.scene);
+  }
+
+  /** Move a slide to a new position in the deck. */
+  moveSlide(id: Id, to: number): void {
+    const writes = reorderSlides(this.scene, id, to);
+    if (writes.size === 0) return;
+    this.transact(() => {
+      for (const [frameId, slide] of writes) this.scene.update<FrameShape>(frameId, { slide });
+    });
+  }
+
+  presentingFrame(): FrameShape | null {
+    if (this.presenting === null) return null;
+    return this.slides()[this.presenting] ?? null;
+  }
+
+  private presentingBox(): Box | null {
+    const f = this.presentingFrame();
+    return f ? { x: f.x, y: f.y, w: f.w, h: f.h } : null;
+  }
+
+  /**
+   * Show the deck full-bleed from `from`, or from the slide the selection is
+   * on when that is not given. Presenting is local: it moves this person's
+   * camera and hides this person's chrome, and says nothing to the board. A
+   * shared presentation is a presence feature, not a camera one, and belongs
+   * with "follow a user" rather than here.
+   */
+  startPresenting(from?: number): void {
+    const deck = this.slides();
+    if (deck.length === 0) return;
+    const current = this.selection.length ? slideOf(this.scene, this.selection[0]) : null;
+    const index = from ?? (current ? deck.findIndex((f) => f.id === current.id) : 0);
+    this.presenting = -1;
+    this.clearSelection();
+    this.gotoSlide(Math.max(0, index));
+  }
+
+  exitPresenting(): void {
+    if (this.presenting === null) return;
+    this.presenting = null;
+    this.notify();
+  }
+
+  /** Move to a slide by index, clamped to the deck. Does nothing when not presenting. */
+  gotoSlide(index: number): void {
+    const deck = this.slides();
+    if (this.presenting === null || deck.length === 0) return;
+    const next = Math.max(0, Math.min(deck.length - 1, index));
+    this.presenting = next;
+    this.fitSlide();
+    this.notify();
+  }
+
+  /** Put the current slide in the middle of the viewport, as large as it goes. */
+  fitSlide(): void {
+    const box = this.presentingBox();
+    // No padding: a slide fills the screen, and the mask hides what the last
+    // few pixels of a neighbouring shape would otherwise show.
+    if (box) this.setCamera(fitCamera(box, this.viewport.w, this.viewport.h, 0));
+  }
+
   /** Fill the viewport with the selection, which is `zoomToFit` over fewer shapes. */
   zoomToSelection(): void {
     if (this.selection.length === 0) return;
@@ -605,6 +678,9 @@ export class Editor {
 
   /** Wheel input: plain scroll pans, ctrl (trackpad pinch) zooms around the cursor. */
   onWheel(dx: number, dy: number, ctrl: boolean, at: Vec): void {
+    // The camera belongs to the slide while presenting; a trackpad nudge must
+    // not leave the audience looking at the gap between two frames.
+    if (this.presenting !== null) return;
     if (ctrl) {
       const factor = Math.exp(-dy * 0.01);
       this.setCamera(zoomCameraBy(this.camera, factor, at));
@@ -767,6 +843,10 @@ export class Editor {
   // ---- pointer input -----------------------------------------------------
 
   onPointerDown(screen: Vec, button: number, mods: Modifiers = NONE): void {
+    // A presentation is something to look at. Taking the pointer out of the
+    // board keeps a stray click from selecting, drawing on or moving the deck
+    // while it is on a screen somebody else is watching.
+    if (this.presenting !== null) return;
     if (this.editing) this.finishEditing();
     const world = this.toWorld(screen);
     if (button === 1 || this.tool === 'hand' || this.spaceHeld) {
@@ -1012,7 +1092,7 @@ export class Editor {
   }
 
   onDoubleClick(screen: Vec): void {
-    if (this.tool !== 'select') return;
+    if (this.presenting !== null || this.tool !== 'select') return;
     const world = this.toWorld(screen);
     const hit = hitTest(this.scene, world, 4 / this.camera.zoom);
     if (hit && (hasText(hit) || hit.type === 'frame' || hit.type === 'connector')) this.startEditing(hit.id, false);
@@ -1049,7 +1129,9 @@ export class Editor {
       case 'ellipse':
         return { type, ...base, fill: SHAPE_FILL, stroke: SHAPE_STROKE, strokeWidth: 2 };
       case 'frame':
-        return { type, ...base, title: 'Frame' };
+        // A preview frame is never added, so it does not take a key: asking for
+        // one on every pointer move would walk the deck on every frame.
+        return { type, ...base, title: 'Frame', slide: id === 'preview' ? '' : nextSlideKey(this.scene) };
       case 'line':
         return {
           type,
@@ -1617,7 +1699,33 @@ export class Editor {
    * chords to them, so a remapped key and a tooltip cannot disagree.
    */
   onKeyDown(key: string, mods: Modifiers): boolean {
+    if (this.presenting !== null && this.presentationKey(key)) return true;
     return runShortcut(this, key, mods);
+  }
+
+  /**
+   * Keys that only mean anything while presenting. These are deliberately not
+   * commands: a command's chord is global, and the arrow keys already nudge
+   * the selection. A mode that takes the keyboard over has to intercept, and
+   * saying so in one place beats six commands that check `presenting` first.
+   * Escape is the exception, because `cancel` already unwinds one layer at a
+   * time and presenting is simply the outermost layer.
+   */
+  private presentationKey(key: string): boolean {
+    const step = { ArrowRight: 1, ArrowDown: 1, PageDown: 1, ' ': 1, Enter: 1, ArrowLeft: -1, ArrowUp: -1, PageUp: -1 }[key];
+    if (step !== undefined) {
+      this.gotoSlide((this.presenting ?? 0) + step);
+      return true;
+    }
+    if (key === 'Home') {
+      this.gotoSlide(0);
+      return true;
+    }
+    if (key === 'End') {
+      this.gotoSlide(this.slides().length - 1);
+      return true;
+    }
+    return false;
   }
 
   /** Move the selection by whole board units, as the arrow keys do. */
@@ -1634,7 +1742,8 @@ export class Editor {
    * this" rather than any one action, so it unwinds one layer per press.
    */
   cancel(): void {
-    if (this.drag) this.cancelDrag();
+    if (this.presenting !== null) this.exitPresenting();
+    else if (this.drag) this.cancelDrag();
     else if (this.pendingComment) this.cancelComment();
     else if (this.paletteOpen) this.setPaletteOpen(false);
     else if (this.selection.length) this.clearSelection();
@@ -1664,6 +1773,25 @@ export class Editor {
 
   exportPNGCanvas(scale = 1): HTMLCanvasElement {
     return renderToCanvas(this.scene, boardBounds(this.scene), scale);
+  }
+
+  /**
+   * One frame on its own, with no padding and nothing from the board around
+   * it. What counts as inside is parentage, not overlap: the editor adopts
+   * shapes into a frame as they are drawn or dragged in, so the two agree,
+   * and a shape half over the edge belongs to whoever adopted it.
+   */
+  exportFrameCanvas(frameId: Id, scale = 1): HTMLCanvasElement {
+    const frame = this.scene.get(frameId);
+    if (frame?.type !== 'frame') throw new Error(`${frameId} is not a frame`);
+    return renderToCanvas(
+      this.scene,
+      { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
+      scale,
+      0,
+      this.theme,
+      (s) => s.id === frameId || this.scene.frameOf(s.id) === frameId,
+    );
   }
 }
 

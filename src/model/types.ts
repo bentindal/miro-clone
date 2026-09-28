@@ -119,6 +119,12 @@ export interface TextShape extends Boxed {
 export interface FrameShape extends Boxed {
   type: 'frame';
   title: string;
+  /**
+   * Fractional index key giving this frame's place in the presentation order.
+   * Empty on frames written before slides existed; see `src/model/slides.ts`
+   * for how those are ordered until something writes a key.
+   */
+  slide: string;
 }
 
 export interface GroupShape extends ShapeBase {

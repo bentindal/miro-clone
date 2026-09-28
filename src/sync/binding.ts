@@ -2,7 +2,7 @@ import * as Y from 'yjs';
 import { Scene, type SceneSnapshot } from '../model/scene';
 import { validateShape } from '../model/serialize';
 import type { Id, Shape } from '../model/types';
-import { assignKeys, compareKeyed, isValidKey } from './fractional';
+import { assignKeys, compareKeyed, isValidKey } from '../model/fractional';
 
 /**
  * Keeps a Scene and a Y.Doc in step.

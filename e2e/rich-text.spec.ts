@@ -1,5 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
-import { type BoardCtx, type Pt, click, dblclick, openBoard, pagePt, placeSticky, selectTool, shapeById, shapes, shapesOf } from './helpers';
+import { type BoardCtx, type Pt, click, dblclick, openBoard, pagePt, placeSticky, selectTool, selection, shapeById, shapes, shapesOf } from './helpers';
 
 interface MarkRecord {
   kind: string;
@@ -46,6 +46,17 @@ async function ink(page: Page, box: { x: number; y: number; w: number; h: number
   );
 }
 
+/**
+ * Ink, once the board has settled. The selection frame is drawn on the note's
+ * own bounds, so a measurement taken before the deselect has landed counts the
+ * outline as ink and reads higher than the same note does a frame later.
+ */
+async function settledInk(page: Page, box: { x: number; y: number; w: number; h: number }, fill: string): Promise<number> {
+  await expect.poll(() => selection(page)).toEqual([]);
+  await page.evaluate(() => (window as unknown as { __wb: { renderNow: () => void } }).__wb.renderNow());
+  return ink(page, box, fill);
+}
+
 /** A note with `text` typed into it, left open for editing. */
 async function noteWith(ctx: BoardCtx, at: Pt, text: string) {
   const note = await placeSticky(ctx, at);
@@ -85,7 +96,7 @@ test.describe('rich text', () => {
     await page.keyboard.press('Escape');
     await page.getByTestId('canvas').focus();
     await page.keyboard.press('Escape');
-    const plain = await ink(page, box, '#fff59d');
+    const plain = await settledInk(page, box, '#fff59d');
 
     await dblclick(ctx, { x: 400, y: 300 });
     await highlight(page, 0, 4);
@@ -94,7 +105,7 @@ test.describe('rich text', () => {
     await page.getByTestId('canvas').focus();
     await page.keyboard.press('Escape');
     // Bold is heavier, so more of the note is ink than before.
-    await expect.poll(() => ink(page, box, '#fff59d')).toBeGreaterThan(plain);
+    await expect.poll(() => settledInk(page, box, '#fff59d')).toBeGreaterThan(plain);
   });
 
   // Formatting is ranges over the string, so an edit that moves characters
