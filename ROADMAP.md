@@ -114,5 +114,18 @@ Only worth starting once phases 2 and 3 are in daily use.
   drawing; rich text, images and elbow connectors each break batching. Keep
   the perf test as a gate and expect to add tile caching during phase 3.
 
+  *Measured, after phase 3 landed all three.* The prediction has not come true
+  at this scale. With 500 each of images, formatted stickies, bulleted text and
+  elbow connectors in the 5,000, pan holds a p95 of about 8ms and zoom about
+  8-10ms, against the 16ms bound. **No tile caching was needed and none was
+  added**; adding it now would be a cache with nothing to fix.
+
+  The lesson is about the gate rather than the renderer. For a while
+  `e2e/perf.spec.ts` built its 5,000 objects from rects, ellipses, stickies,
+  lines and pen strokes alone — green, while no longer covering the content
+  the note above says would break it. The mix now carries all three, and the
+  test **asserts its own mix** and that the pictures reached the canvas, so it
+  cannot quietly narrow back to the shapes that batch well.
+
 Realistic sequencing for one small team: phase 2 is two to three months,
 phase 3 another two to three, and phase 4 is open-ended.
