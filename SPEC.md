@@ -307,6 +307,35 @@ needs a passing end-to-end test.
       `pasting with nothing on the system clipboard still pastes copied shapes`,
       `a view-only board refuses a dropped image`.
 
+## Phase 4: content types and structure
+
+Breadth, one object type or one use of an existing one at a time. Same rule: a
+tick needs a passing end-to-end test.
+
+- [x] Frames as presentation slides. Every frame is a slide. The Slides panel
+      lists them in presentation order, moves one earlier or later, and starts
+      the show; presenting fits the slide to the window, hides the whole
+      editor, walks the deck with the arrow keys, Space, PageUp/PageDown and
+      Home/End, and leaves on Escape. While it is up the board takes no
+      pointer input at all, so a stray click cannot edit a deck somebody is
+      watching, and everything outside the slide is masked over rather than
+      showing in the letterbox. The order is a fractional index key per frame
+      rather than the z-order, because frames sit at the *bottom* of the
+      z-order to stay behind their contents, which would otherwise make each
+      new frame slide one. A frame exports to a one-page PDF of its own size
+      and the deck to one page per slide, holding what the frame holds and not
+      what merely overlaps it.
+      Proof: [`e2e/slides.spec.ts`](e2e/slides.spec.ts) › `frames as slides` ›
+      `every frame is a slide, listed in the order it was drawn`,
+      `the panel reorders the deck, and the move can be undone`,
+      `presenting fills the screen with one slide, hides the editor and walks the deck`,
+      `the slide is masked, so the board beside it does not show in the letterbox`,
+      `the board cannot be edited or panned while it is being presented`,
+      `a frame exports to a PDF page of its own size, with the board around it left out`,
+      `a frame exports what it holds, not what merely overlaps it`,
+      `the whole deck exports as one PDF, one page per slide, in slide order`,
+      `a board with no frames offers nothing to present`.
+
 ## Unit coverage
 
 The model underneath is covered by Vitest (`pnpm test`):
@@ -322,7 +351,9 @@ The model underneath is covered by Vitest (`pnpm test`):
 - What counts as a picture, and how big it arrives: `src/model/__tests__/images.test.ts`
 - Inline formatting ranges, and keeping them on the right characters: `src/model/__tests__/marks.test.ts`
 - Scene/Yjs binding and per-user undo: `src/sync/__tests__/binding.test.ts`
-- Fractional z-order keys (convergent concurrent reorders): `src/sync/__tests__/fractional.test.ts`
+- Fractional order keys (convergent concurrent reorders): `src/model/__tests__/fractional.test.ts`
+- Slide order over frames, and what a reorder writes: `src/model/__tests__/slides.test.ts`
+- The PDF writer, down to its xref offsets and pixel round trip: `src/editor/__tests__/pdf.test.ts`
 - Server store (real Postgres SQL on PGlite): `server/src/store.test.ts`
 - Server rooms, roles and HTTP API: `server/src/app.test.ts`
 

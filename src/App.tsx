@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './editor/Board';
+import { Presenter } from './editor/Presenter';
 import { CommandPalette } from './editor/CommandPalette';
 import { Editor } from './editor/Editor';
 import { Minimap } from './editor/Minimap';
@@ -13,6 +14,7 @@ import { ApiError, NoSyncServerError, createBoard, getBoard, parseBoardLocation 
 import { rememberBoard, updateRecentTitle } from './sync/recent';
 import { SyncSession, loadUser } from './sync/session';
 import { installTestHooks } from './testHooks';
+import { useEditorVersion } from './editor/useEditor';
 import './app.css';
 
 type Boot =
@@ -99,6 +101,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
+  // Presenting hides most of the app, so this component follows the editor.
+  useEditorVersion(editor);
+  const presenting = editor.presenting !== null;
+
   if (boot.kind === 'home') {
     return (
       <div className="app">
@@ -121,7 +127,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <TopBar editor={editor} session={boot.kind === 'online' ? boot.session : null} mode={boot.kind} />
+      {!presenting && <TopBar editor={editor} session={boot.kind === 'online' ? boot.session : null} mode={boot.kind} />}
       {boot.kind === 'loading' ? (
         <div className="boot-message" data-testid="boot-loading">
           Opening board…
@@ -131,10 +137,19 @@ export default function App() {
         // dock float above it rather than eating into it.
         <div className="workspace">
           <Board editor={editor} />
-          <ToolRail editor={editor} />
-          <ZoomCluster editor={editor} />
-          <Minimap editor={editor} />
-          <Dock editor={editor} />
+          {/* Presenting takes the editor away and leaves the board: the rail,
+              the view controls, the minimap and the dock are all about editing,
+              and a slide with a toolbar over it is not a slide. */}
+          {presenting ? (
+            <Presenter editor={editor} />
+          ) : (
+            <>
+              <ToolRail editor={editor} />
+              <ZoomCluster editor={editor} />
+              <Minimap editor={editor} />
+              <Dock editor={editor} />
+            </>
+          )}
         </div>
       )}
       <CommandPalette editor={editor} />

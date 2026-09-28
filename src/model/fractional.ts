@@ -1,8 +1,9 @@
 /**
  * Fractional index keys: strings that sort lexicographically and always
- * admit a new key strictly between any two existing ones. Each shape carries
- * one, so concurrent reorders converge to one total order with no duplicates
- * (ties on equal keys break by id).
+ * admit a new key strictly between any two existing ones. A record carries one
+ * per order it takes part in, so concurrent reorders converge to one total
+ * order with no duplicates (ties on equal keys break by id). Two orders use
+ * them: the z-order every shape has, and the slide order over frames.
  *
  * A key is an integer part followed by an optional fraction, both in a
  * 62-symbol alphabet. The integer part's first character encodes its length
@@ -10,8 +11,9 @@
  * ... for negative), so appending at either end grows keys logarithmically
  * while inserting between neighbours only extends the fraction. The
  * fraction never ends in the lowest digit. This is the scheme from the
- * `fractional-indexing` package, reimplemented so the Worker and the app
- * share one small dependency-free file.
+ * `fractional-indexing` package, reimplemented so nothing here needs a
+ * dependency. It lives in the model because the model orders slides with it;
+ * the synchronisation layer orders shapes with the same keys.
  */
 const DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const BASE = DIGITS.length;

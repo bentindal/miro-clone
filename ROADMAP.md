@@ -18,10 +18,15 @@ shared by anonymous edit or view links. The server runs for free on Cloudflare
 Workers with one Durable Object per board; a Node/Postgres flavour exists for
 self-hosting.
 
+Phase 3 (editing quality) is in, and the first of phase 4 with it: frames
+present as slides, with an order of their own, a presentation mode and a PDF
+export.
+
 The interface itself is tracked separately in
-[UI-ROADMAP.md](UI-ROADMAP.md): the editor works but looks like a debug
-harness, and the parts that make it hard to restyle are also the parts that
-make it hard to extend.
+[UI-ROADMAP.md](UI-ROADMAP.md), which is complete through UI-6: design tokens,
+a floating shell, schema-driven property controls, canvas chrome, dark mode
+and density, and one command registry behind the buttons, menus, keyboard,
+palette and context menu.
 
 What is still thin:
 
@@ -31,7 +36,9 @@ What is still thin:
   viewers write the `comments` map and nothing else.
 - **Connector-to-connector bends** and obstacle avoidance are missing;
   routing is a single mid-point elbow.
-- **Text is plain.** No bold, lists or links; sticky notes do not auto-fit.
+- **Text formats one run at a time.** Bold, italic, links and lists are in,
+  and sticky notes auto-fit, but there is no font choice and no colour on a
+  run of text.
 - **Accessibility is a first pass.** Objects are announced and reachable, but
   there is no keyboard resize or rotate, and no high-contrast theme.
 
@@ -81,7 +88,26 @@ and a real chunk of work.
 4. Template gallery (retrospective, user story map, flowchart). Needs the
    property toolbar and connector routing first or the templates look bad.
 5. Frames as presentation slides: ordering, presenter mode, export a frame to
-   PDF.
+   PDF (done, `e2e/slides.spec.ts`). Three things it deliberately does not do:
+
+   - **Presenting is local.** It moves this person's camera and hides this
+     person's chrome; the board is told nothing. Everyone watching one
+     presenter's screen is a presence feature, not a camera one, and belongs
+     with "follow a user" in phase 2 rather than here.
+   - **Reordering is a pair of buttons, not a drag.** The list works from the
+     keyboard and reads properly out loud, which a drag would have to be
+     built on top of anyway. `moveSlide` is the same call either way.
+   - **A PDF page is a picture of the frame.** Text goes in as pixels, not as
+     text, so it does not select or search in a reader. Real text would mean
+     embedding fonts, and the whole PDF writer is 130 lines because it does
+     not (`src/editor/pdf.ts`). Deflated RGB rather than a JPEG, so the
+     pixels at least stay sharp.
+
+   The order lives on the frames themselves, as a fractional index key per
+   frame (`src/model/slides.ts`), not as the z-order: frames are inserted at
+   the *bottom* of the z-order so they stay behind their contents, which would
+   have made every new frame slide one. A key per frame also means one field
+   written per move, and two people reordering at once converge.
 6. Embeds: links with previews, video, documents.
 7. Facilitation widgets: timer, voting session, estimation.
 

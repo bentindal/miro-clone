@@ -1,5 +1,8 @@
 import { downloadBlob } from './download';
 import type { Editor } from './Editor';
+import { type PdfPage, buildPdf, rgbOf } from './pdf';
+import { slideOf } from '../model/slides';
+import type { FrameShape } from '../model/types';
 import type { IconName } from '../ui';
 import { toast } from '../ui';
 import { READ_ONLY_TOOLS, TOOLS, TOOL_META } from './tools';
@@ -86,6 +89,7 @@ const nudges: Command[] = (
 ]);
 
 const hasSelection = (e: Editor) => e.selection.length > 0;
+const hasSlides = (e: Editor) => e.slides().length > 0;
 
 /**
  * Every action the editor offers, defined once. The rail, the zoom cluster,
@@ -158,9 +162,30 @@ export const COMMANDS: Command[] = [
   { id: 'toggle-minimap', label: 'Minimap', icon: 'minimap', group: 'view', run: (e) => e.setMinimapOpen(!e.minimapOpen), isActive: (e) => e.minimapOpen },
   { id: 'toggle-grid', label: 'Snap to grid', icon: 'grid', group: 'view', shortcut: ['G'], run: (e) => e.setGridSnap(!e.gridSnap), isActive: (e) => e.gridSnap },
 
+  {
+    id: 'present',
+    label: 'Present',
+    icon: 'present',
+    group: 'view',
+    shortcut: ['Ctrl+Shift+P'],
+    run: (e) => (e.presenting === null ? e.startPresenting() : e.exitPresenting()),
+    isEnabled: hasSlides,
+    isActive: (e) => e.presenting !== null,
+  },
+
   { id: 'palette', label: 'Command palette', icon: 'command', group: 'board', shortcut: ['Ctrl+K'], run: (e) => e.setPaletteOpen(!e.paletteOpen) },
   { id: 'shortcuts', label: 'Keyboard shortcuts', icon: 'keyboard', group: 'board', run: (e) => e.setOpenPanel(e.openPanel === 'shortcuts' ? null : 'shortcuts') },
+  { id: 'slides', label: 'Slides', icon: 'present', group: 'board', run: (e) => e.setOpenPanel(e.openPanel === 'slides' ? null : 'slides') },
   { id: 'export-png', label: 'Export as PNG', icon: 'image', group: 'board', run: exportPNG },
+  {
+    id: 'export-frame-pdf',
+    label: 'Export frame as PDF',
+    icon: 'pdf',
+    group: 'board',
+    run: (e) => void exportFramePDF(e),
+    isEnabled: (e) => e.selection.some((id) => slideOf(e.scene, id) !== null),
+  },
+  { id: 'export-slides-pdf', label: 'Export slides as PDF', icon: 'pdf', group: 'board', run: (e) => void exportSlidesPDF(e), isEnabled: hasSlides },
   { id: 'save-json', label: 'Save board', icon: 'save', group: 'board', shortcut: ['Ctrl+S'], run: saveJSON },
 ];
 
@@ -173,6 +198,50 @@ function exportPNG(editor: Editor): void {
       toast('Could not export this board as a PNG', 'error');
     }
   }, 'image/png');
+}
+
+/**
+ * How wide a slide is rendered before it goes into the PDF. Two device pixels
+ * per board pixel is what the PNG export uses; the cap keeps a wall-sized
+ * frame from asking for a gigabyte of pixels on the way out.
+ */
+const PDF_SCALE = 2;
+const PDF_MAX_EDGE = 2400;
+
+function pdfPage(editor: Editor, frame: FrameShape): PdfPage {
+  const scale = Math.min(PDF_SCALE, PDF_MAX_EDGE / Math.max(frame.w, frame.h, 1));
+  const canvas = editor.exportFrameCanvas(frame.id, scale);
+  return { width: frame.w, height: frame.h, pixelWidth: canvas.width, pixelHeight: canvas.height, rgb: rgbOf(canvas) };
+}
+
+/** A name a file manager can live with: the frame's title, or the slide number. */
+function pdfName(frame: FrameShape, index: number): string {
+  const title = frame.title.trim().replace(/[^\w -]+/g, '').replace(/\s+/g, '-');
+  return `${title || `slide-${index + 1}`}.pdf`;
+}
+
+async function exportFramePDF(editor: Editor): Promise<void> {
+  const frame = editor.selection.map((id) => slideOf(editor.scene, id)).find((f) => f !== null);
+  if (!frame) return;
+  await writePDF([pdfPage(editor, frame)], pdfName(frame, editor.slides().findIndex((f) => f.id === frame.id)));
+}
+
+async function exportSlidesPDF(editor: Editor): Promise<void> {
+  const deck = editor.slides();
+  if (deck.length === 0) return;
+  await writePDF(
+    deck.map((f) => pdfPage(editor, f)),
+    'slides.pdf',
+  );
+}
+
+async function writePDF(pages: PdfPage[], filename: string): Promise<void> {
+  try {
+    downloadBlob(await buildPdf(pages), filename);
+    toast(`Exported ${filename}`, 'success');
+  } catch (err) {
+    toast(err instanceof Error ? err.message : `Could not export ${filename}`, 'error');
+  }
 }
 
 function saveJSON(editor: Editor): void {

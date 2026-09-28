@@ -45,11 +45,13 @@ test.describe('shell', () => {
     // One tab per registered panel, named from its definition. Shortcuts
     // registered itself in UI-6 without the dock being told about it, which is
     // the point of the registry, so the count follows the registrations.
-    await expect(tabs).toHaveCount(2);
+    await expect(tabs).toHaveCount(3);
     await expect(tabs.nth(0)).toHaveAttribute('data-action', 'toggle-comments');
     await expect(tabs.nth(0)).toHaveAttribute('aria-label', 'Comments');
-    await expect(tabs.nth(1)).toHaveAttribute('data-action', 'toggle-shortcuts');
-    await expect(tabs.nth(1)).toHaveAttribute('aria-label', 'Shortcuts');
+    await expect(tabs.nth(1)).toHaveAttribute('data-action', 'toggle-slides');
+    await expect(tabs.nth(1)).toHaveAttribute('aria-label', 'Slides');
+    await expect(tabs.nth(2)).toHaveAttribute('data-action', 'toggle-shortcuts');
+    await expect(tabs.nth(2)).toHaveAttribute('aria-label', 'Shortcuts');
     await expect(page.getByTestId('panel-comments')).toHaveCount(0);
 
     await tabs.first().click();

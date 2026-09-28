@@ -60,6 +60,11 @@ export interface Overlay {
   /** World position of a comment being composed. */
   pendingPin: Vec | null;
   editingId: Id | null;
+  /**
+   * The slide being presented, in world coordinates. Everything outside it is
+   * covered over, so a frame reads as a slide rather than as part of a board.
+   */
+  presenting: Box | null;
 }
 
 export interface RenderStats {
@@ -261,6 +266,21 @@ export function renderBoard(
   }
   if (overlay.preview) drawShape(ctx, scene, overlay.preview, cam.zoom, theme, base);
   ctx.restore();
+
+  if (overlay.presenting) {
+    // A mask rather than a clip: the shapes are drawn once either way, and the
+    // frame's own title sits outside its box, so covering is what hides it.
+    const box = overlay.presenting;
+    const a = worldToScreen(cam, { x: box.x, y: box.y });
+    const b = worldToScreen(cam, { x: box.x + box.w, y: box.y + box.h });
+    ctx.save();
+    ctx.fillStyle = theme.background;
+    ctx.fillRect(0, 0, width, Math.max(0, a.y));
+    ctx.fillRect(0, Math.min(height, b.y), width, height);
+    ctx.fillRect(0, Math.max(0, a.y), Math.max(0, a.x), Math.min(height, b.y) - Math.max(0, a.y));
+    ctx.fillRect(Math.min(width, b.x), Math.max(0, a.y), width, Math.min(height, b.y) - Math.max(0, a.y));
+    ctx.restore();
+  }
 
   // Screen-space overlays.
   ctx.save();
@@ -990,7 +1010,19 @@ function drawVotes(ctx: CanvasRenderingContext2D, s: StickyShape, zoom: number, 
 }
 
 /** Render the whole board (or a region) to an offscreen canvas, e.g. for PNG export. */
-export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 20, theme: CanvasTheme = LIGHT_CANVAS_THEME): HTMLCanvasElement {
+/**
+ * Draw part of a board into a fresh canvas. `include` narrows what is drawn,
+ * which is how one frame is exported without the board around it showing
+ * through at its edges.
+ */
+export function renderToCanvas(
+  scene: Scene,
+  region: Box,
+  scale = 1,
+  padding = 20,
+  theme: CanvasTheme = LIGHT_CANVAS_THEME,
+  include: (s: Shape) => boolean = () => true,
+): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   const w = Math.max(1, Math.ceil((region.w + padding * 2) * scale));
   const h = Math.max(1, Math.ceil((region.h + padding * 2) * scale));
@@ -1002,7 +1034,7 @@ export function renderToCanvas(scene: Scene, region: Box, scale = 1, padding = 2
   ctx.fillRect(0, 0, w, h);
   ctx.setTransform(scale, 0, 0, scale, (padding - region.x) * scale, (padding - region.y) * scale);
   const base = matrixOf(ctx);
-  const all = scene.all();
+  const all = scene.all().filter(include);
   for (const s of all) if (s.type === 'frame') drawShape(ctx, scene, s, scale, theme, base);
   for (const s of all) if (s.type !== 'frame') drawShape(ctx, scene, s, scale, theme, base);
   return canvas;

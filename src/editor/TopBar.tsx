@@ -21,7 +21,7 @@ const DENSITY_CHOICES: { value: Density; label: string }[] = [
  * it needs a file input, which is a DOM affordance rather than something a
  * `run(editor)` can produce, so it stays hand-written below.
  */
-const MENU_COMMANDS = ['palette', 'shortcuts', 'export-png', 'save-json'];
+const MENU_COMMANDS = ['palette', 'shortcuts', 'slides', 'export-png', 'export-frame-pdf', 'export-slides-pdf', 'save-json'];
 
 const STATUS_LABEL: Record<string, string> = {
   local: 'Local only',

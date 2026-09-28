@@ -48,8 +48,8 @@ export function line(id: string, x: number, y: number, x2: number, y2: number): 
   };
 }
 
-export function frame(id: string, x: number, y: number, w: number, h: number): FrameShape {
-  return { type: 'frame', id, parentId: null, x, y, w, h, rotation: 0, title: 'Frame' };
+export function frame(id: string, x: number, y: number, w: number, h: number, extra: Partial<FrameShape> = {}): FrameShape {
+  return { type: 'frame', id, parentId: null, x, y, w, h, rotation: 0, title: 'Frame', slide: '', ...extra };
 }
 
 export function group(id: string, parentId: string | null = null): GroupShape {
